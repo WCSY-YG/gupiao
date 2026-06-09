@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10（Asia/Shanghai）
+更新时间：2026-06-10 02:26 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -28,6 +28,11 @@
 - `skills/technical-signal-buy-sell/SKILL.md`
 - `skills/backtest-validation/SKILL.md`
 - `skills/performance-risk-reporting/SKILL.md`
+
+已经启动项目自动推进控制面：
+
+- `docs/PROJECT_TASKS.md`：项目任务清单，记录 `pending` / `in_progress` / `done` / `blocked` 状态。
+- `docs/AUTOMATION_RUNBOOK.md`：每轮自动推进规则、GitHub 更新规则和阻塞处理方式。
 
 ## 当前调研结论
 
@@ -67,15 +72,20 @@ MVP 优先参考项目：
 
 ## 下一步默认推进
 
-1. 深读 P0 项目的 README、docs、examples、license。
-2. 将 P0 skill 草案补充 references。
-3. 搭建最小代码骨架：`src/`、`data/`、`configs/`、`reports/`、`tests/`。
-4. 实现第一个完整策略：均线多头 + 放量突破 + ATR 止损。
+每轮恢复时先读取 `docs/AUTOMATION_RUNBOOK.md` 和 `docs/PROJECT_TASKS.md`，再推进下一项 `pending` 任务。
+
+当前下一项任务：
+
+1. `P0-03`：深读 P0 项目的 README、docs、examples、license。
+2. `P0-04`：将 P0 skill 草案补充 references。
+3. `P1-01`：搭建最小代码骨架：`src/`、`data/`、`configs/`、`reports/`、`tests/`。
+4. `P2-02`：实现第一个完整策略：均线多头 + 放量突破 + ATR 止损。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
+
+每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交、推送到 GitHub。
 
 ## 注意事项
 
 - 当前项目定位为研究与辅助分析工具，不默认接入真实交易。
 - 必须防未来函数、幸存者偏差、财务数据偷看、参数过拟合。
 - A 股回测必须考虑 T+1、涨跌停、停牌、手续费、印花税、滑点。
-

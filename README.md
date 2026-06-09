@@ -13,6 +13,8 @@ A-share stock screening and buy/sell signal research project.
 
 - `docs/PROJECT_PLAN.md`: overall project plan.
 - `docs/PROJECT_MEMORY.md`: current project memory and decisions.
+- `docs/PROJECT_TASKS.md`: tracked project task list with completion status.
+- `docs/AUTOMATION_RUNBOOK.md`: resumable automation and GitHub update rules.
 - `docs/research/01_github_search_checklist.md`: GitHub search checklist.
 - `docs/research/02_github_project_registry.md`: researched GitHub project registry.
 - `docs/research/03_skill_distillation_plan.md`: skill distillation plan.
@@ -30,4 +32,3 @@ A-share stock screening and buy/sell signal research project.
 Version: `0.1.0`
 
 This project is currently in planning and research distillation stage. It is for research and decision support only, not investment advice.
-
