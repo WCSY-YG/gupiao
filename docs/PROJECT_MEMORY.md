@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 02:33 CST（Asia/Shanghai）
+更新时间：2026-06-10 02:34 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -49,6 +49,12 @@
 - `tests/test_package_import.py`：最小导入和 CLI version 测试。
 - 验证：`pytest` 尚未安装；已使用 `PYTHONPATH=src python -c ...` 完成导入/CLI 冒烟检查。
 
+已经完成 Python 工程配置：
+
+- `pyproject.toml`：`src/` layout、CLI entry point、可选依赖、pytest/ruff/mypy 配置。
+- `docs/DEVELOPMENT.md`：环境安装、测试、格式化、类型检查和打包命令。
+- 验证：`pyproject.toml` 可解析，`PYTHONPATH=src python -m compileall -q src tests` 通过，`PYTHONPATH=src python -m gupiao.cli --version` 输出 `0.1.0`。
+
 ## 当前调研结论
 
 MVP 优先参考项目：
@@ -91,8 +97,8 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P1-02`：建立 Python 工程配置。
-2. `P1-03`：实现股票列表与日线数据接入接口。
+1. `P1-03`：实现股票列表与日线数据接入接口。
+2. `P1-04`：设计并实现本地数据存储。
 3. `P2-02`：实现第一个完整策略：均线多头 + 放量突破 + ATR 止损。
 4. `P3-01`：跑通单策略回测闭环。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。

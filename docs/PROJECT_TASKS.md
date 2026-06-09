@@ -1,6 +1,6 @@
 # 项目任务清单
 
-更新时间：2026-06-10 02:33 CST
+更新时间：2026-06-10 02:34 CST
 
 本文档是项目自动推进的状态源。每一轮任务开始前先读取本文件；每完成一个任务，必须更新状态并提交、推送到 GitHub。
 
@@ -16,7 +16,7 @@
 ## 当前指针
 
 - 当前阶段：Phase 1。
-- 下一项任务：`P1-02` 建立 Python 工程配置。
+- 下一项任务：`P1-03` 实现股票列表与日线数据接入接口。
 - 推进规则：从上到下选择第一个 `pending` 且依赖已完成的任务。
 - GitHub 更新规则：每完成一个任务，更新本清单和相关项目记忆，执行一次 commit，并推送到 `origin`。
 
@@ -30,7 +30,7 @@
 | P0-03 | done | Phase 0 | 深读 P0 参考项目 README、docs、examples、license | 为 AKShare、myhhub/stock、TA-Lib、backtesting.py、QuantStats 形成可引用 notes | P0-02 |
 | P0-04 | done | Phase 0 | 补充 P0 skills references | 每个 P0 skill 有来源、适用场景、关键 API/约束、后续实现提示 | P0-03 |
 | P1-01 | done | Phase 1 | 搭建最小代码骨架 | 创建 `src/`、`configs/`、`data/`、`reports/`、`tests/`，并有基础包结构 | P0-04 |
-| P1-02 | pending | Phase 1 | 建立 Python 工程配置 | 明确依赖、运行入口、测试命令、格式化/类型检查策略 | P1-01 |
+| P1-02 | done | Phase 1 | 建立 Python 工程配置 | 明确依赖、运行入口、测试命令、格式化/类型检查策略 | P1-01 |
 | P1-03 | pending | Phase 1 | 实现股票列表与日线数据接入接口 | 能通过 CLI 或函数获取 A 股基础列表和日线样例数据 | P1-02 |
 | P1-04 | pending | Phase 1 | 设计并实现本地数据存储 | SQLite/DuckDB/Parquet 方案可写入、读取、增量更新 | P1-03 |
 | P1-05 | pending | Phase 1 | 加入数据质量检查 | 覆盖缺失值、停牌、复权、重复记录、时间顺序等基础校验 | P1-04 |
@@ -51,3 +51,4 @@
 - 2026-06-10 02:32 CST：完成 P0 参考项目深读，新增 `docs/research/04_p0_reference_notes.md`。
 - 2026-06-10 02:32 CST：完成 P0 skills references 补充，更新 5 个项目 skill。
 - 2026-06-10 02:33 CST：完成最小代码骨架，新增 `src/gupiao` 包、配置/数据/报告目录说明和导入测试；`pytest` 尚未安装，已用 `PYTHONPATH=src python -c ...` 完成冒烟检查。
+- 2026-06-10 02:34 CST：完成 Python 工程配置，新增 `pyproject.toml`、开发命令文档、CLI entry point 和 pytest/ruff/mypy 配置；已验证 TOML 解析、`compileall` 和 CLI version。
