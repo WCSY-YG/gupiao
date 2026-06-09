@@ -33,7 +33,14 @@
 
 - `skills/stock-trading-research-master/SKILL.md`
 
-当前版本：`0.2.0`。
+当前版本：`0.2.1`。
+
+## 固定工作约定
+
+- README 必须保持中文。
+- 后续所有 Python 命令默认使用 conda 的 `agent` 环境。
+- 推荐命令形式：`conda run -n agent python ...`、`conda run -n agent pytest ...`。
+- 如果新增 Python 脚本、测试、依赖安装或运行服务，优先确认命令是否在 `agent` 环境中执行。
 
 ## 当前调研结论
 
@@ -75,6 +82,7 @@ MVP 优先参考项目：
 ## 建议技术路线
 
 - Python 3.11/3.12。
+- Python 运行环境：统一使用 conda 的 `agent` 环境。
 - 数据处理：pandas，后期可引入 Polars。
 - 存储：SQLite/DuckDB + Parquet。
 - 数据源：AKShare 作为 MVP 主数据源。

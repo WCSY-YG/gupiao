@@ -15,6 +15,8 @@ This project is for research, simulation, and decision support only. Do not pres
 2. If the work is more than a tiny note, use a topic branch named `codex/<topic>`.
 3. Record any external research date and source URLs in `docs/research/`.
 4. Keep `VERSION`, `CHANGELOG.md`, and project memory aligned when the change affects project direction, skill structure, or delivered capability.
+5. Keep README content in Chinese.
+6. Run Python commands through the conda `agent` environment, preferably `conda run -n agent python ...` or `conda run -n agent pytest ...`.
 
 ## External Research First
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 - 2026-06-10
+
+- Converted README content to Chinese.
+- Added the project convention that future Python commands should use the conda `agent` environment.
+
 ## 0.2.0 - 2026-06-10
 
 - Expanded the full project plan with GitHub version-management workflow, market-update cadence, skill hierarchy, and long-term iteration phases.

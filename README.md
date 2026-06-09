@@ -1,23 +1,23 @@
 # gupiao
 
-A-share stock screening and buy/sell signal research project.
+A 股选股、买卖点分析与量化研究项目。
 
-## Current Scope
+## 当前范围
 
-- Multi-strategy stock screening.
-- Buy/sell point analysis with signal explanations.
-- Backtest validation and risk reporting.
-- GitHub project research distilled into reusable project skills.
+- 多策略选股：技术面、基本面、资金面、形态、多因子与机器学习方向。
+- 买卖点分析：入场、加仓、减仓、止损、止盈、失效条件和中文解释。
+- 回测验证：手续费、滑点、T+1、涨跌停、样本外验证和风险报告。
+- GitHub 项目调研：把高星量化项目和交易 skill/agent 项目蒸馏为项目内 skills。
 
-## Project Documents
+## 项目文档
 
-- `docs/PROJECT_PLAN.md`: overall project plan.
-- `docs/PROJECT_MEMORY.md`: current project memory and decisions.
-- `docs/research/01_github_search_checklist.md`: GitHub search checklist.
-- `docs/research/02_github_project_registry.md`: researched GitHub project registry.
-- `docs/research/03_skill_distillation_plan.md`: skill distillation plan.
+- `docs/PROJECT_PLAN.md`：项目总规划。
+- `docs/PROJECT_MEMORY.md`：项目记忆、约定和当前决策。
+- `docs/research/01_github_search_checklist.md`：GitHub 搜索清单。
+- `docs/research/02_github_project_registry.md`：GitHub 项目地址登记表。
+- `docs/research/03_skill_distillation_plan.md`：skills 蒸馏计划。
 
-## Project Skills
+## 项目 Skills
 
 - `skills/stock-data-ingestion`
 - `skills/stock-screening-strategies`
@@ -26,8 +26,14 @@ A-share stock screening and buy/sell signal research project.
 - `skills/performance-risk-reporting`
 - `skills/stock-trading-research-master`
 
-## Status
+## 环境约定
 
-Version: `0.2.0`
+- 后续所有 Python 命令默认使用 conda 的 `agent` 环境。
+- 推荐命令形式：`conda run -n agent python ...`、`conda run -n agent pytest ...`。
+- 不默认接入真实交易账户，本项目只做研究、模拟和辅助分析。
 
-This project is currently in planning and research distillation stage. It is for research and decision support only, not investment advice.
+## 状态
+
+版本：`0.2.1`
+
+当前处于规划、GitHub 调研和 skill 蒸馏阶段。本项目只用于研究和决策辅助，不构成投资建议。

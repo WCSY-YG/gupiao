@@ -1,6 +1,6 @@
 # 股票选股与买卖点分析项目总规划
 
-规划版本：0.2.0
+规划版本：0.2.1
 最近调研：2026-06-10（Asia/Shanghai）
 
 ## 定位
@@ -22,6 +22,7 @@
 - 每轮较大变更先从干净工作区创建 `codex/<topic>` 分支。
 - 文档、skill、代码、测试分批提交；提交信息用 `docs:`, `skill:`, `feat:`, `test:`, `chore:` 前缀。
 - 每次功能性变更同步更新 `VERSION`、`CHANGELOG.md` 和相关项目记忆。
+- README 保持中文；面向用户的项目说明优先使用中文。
 - 外部项目调研必须记录检索日期；星级和维护状态只作为当日快照。
 - 不把数据缓存、回测大文件、报告图片批量提交到 Git；后续用 `.gitignore` 和可复现任务管理。
 - 进入可运行阶段后，默认节奏为：小步分支 -> 本地验证 -> 合并前复核 -> tag 版本。
@@ -120,6 +121,7 @@ P1/P2 待扩展 skill：
 ## 技术栈建议
 
 - 语言：Python 3.11/3.12。
+- 运行环境：所有 Python 命令默认使用 conda 的 `agent` 环境，例如 `conda run -n agent python ...`。
 - 数据处理：pandas MVP，后期引入 Polars 提升批量处理性能。
 - 存储：SQLite/DuckDB + Parquet，先本地轻量化，后续可扩展对象存储。
 - 数据源：AKShare 作为 MVP 主数据源，Tushare/OpenBB/yfinance 作为扩展。
