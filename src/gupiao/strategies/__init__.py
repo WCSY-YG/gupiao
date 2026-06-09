@@ -1,0 +1,1 @@
+"""Stock screening strategy layer."""

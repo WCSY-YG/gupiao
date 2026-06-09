@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 02:32 CST（Asia/Shanghai）
+更新时间：2026-06-10 02:33 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -41,6 +41,13 @@
 已经完成 P0 skills references 补充：
 
 - 5 个项目 skill 均已补充来源链接、许可证、关键 API/约束和实现提示。
+
+已经完成最小代码骨架：
+
+- `src/gupiao/`：基础包、CLI 入口、数据 provider 协议、核心数据记录、指标/策略/信号/回测/报告模块边界。
+- `configs/`、`data/`、`reports/`：目录说明。
+- `tests/test_package_import.py`：最小导入和 CLI version 测试。
+- 验证：`pytest` 尚未安装；已使用 `PYTHONPATH=src python -c ...` 完成导入/CLI 冒烟检查。
 
 ## 当前调研结论
 
@@ -84,8 +91,8 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P1-01`：搭建最小代码骨架：`src/`、`data/`、`configs/`、`reports/`、`tests/`。
-2. `P1-02`：建立 Python 工程配置。
+1. `P1-02`：建立 Python 工程配置。
+2. `P1-03`：实现股票列表与日线数据接入接口。
 3. `P2-02`：实现第一个完整策略：均线多头 + 放量突破 + ATR 止损。
 4. `P3-01`：跑通单策略回测闭环。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
