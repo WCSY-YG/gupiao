@@ -24,10 +24,10 @@ A-share stock screening and buy/sell signal research project.
 - `skills/technical-signal-buy-sell`
 - `skills/backtest-validation`
 - `skills/performance-risk-reporting`
+- `skills/stock-trading-research-master`
 
 ## Status
 
-Version: `0.1.0`
+Version: `0.2.0`
 
 This project is currently in planning and research distillation stage. It is for research and decision support only, not investment advice.
-
