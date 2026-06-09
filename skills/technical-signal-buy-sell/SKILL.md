@@ -26,6 +26,21 @@ Each buy/sell signal should include:
 - Volume-price: OBV, volume ratio, turnover, amount breakout.
 - Pattern: TA-Lib candlestick patterns and project-specific K-line rules.
 
+## Reference Sources
+
+- P0 notes: `docs/research/04_p0_reference_notes.md`
+- TA-Lib Python GitHub: https://github.com/TA-Lib/ta-lib-python
+- Upstream TA-Lib: https://ta-lib.org/
+- License: BSD-2-Clause
+
+## Indicator Implementation Notes
+
+- Prefer TA-Lib Function API or Abstract API for MVP indicators when available.
+- Keep TA-Lib optional; provide `ta` or pandas/numpy fallbacks for environments where the C library is unavailable.
+- Preserve lookback NaN values and let strategy code explicitly drop or mask unavailable rows.
+- Separate generic indicators from candlestick-pattern detection so strategy code can choose only what it needs.
+- When mapping DataFrames into TA-Lib Abstract API, keep canonical OHLCV names stable.
+
 ## Default Rules
 
 - A buy point should require at least one trigger and one confirmation.
@@ -39,4 +54,4 @@ Each buy/sell signal should include:
 - Does the signal explain both upside thesis and downside risk?
 - Are stop-loss and take-profit levels numeric and reproducible?
 - Does the signal avoid contradicting the higher timeframe trend unless it is explicitly a reversal strategy?
-
+- Are indicator warmup periods and NaN propagation handled deterministically?

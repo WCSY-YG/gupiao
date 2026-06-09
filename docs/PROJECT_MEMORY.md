@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 02:35 CST（Asia/Shanghai）
+更新时间：2026-06-10 02:32 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -37,6 +37,10 @@
 已经完成 P0 参考项目深读：
 
 - `docs/research/04_p0_reference_notes.md`：AKShare、myhhub/stock、TA-Lib Python、backtesting.py、QuantStats 的 README/docs/examples/license 深读笔记和落地建议。
+
+已经完成 P0 skills references 补充：
+
+- 5 个项目 skill 均已补充来源链接、许可证、关键 API/约束和实现提示。
 
 ## 当前调研结论
 
@@ -80,8 +84,8 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P0-04`：将 P0 skill 草案补充 references。
-2. `P1-01`：搭建最小代码骨架：`src/`、`data/`、`configs/`、`reports/`、`tests/`。
+1. `P1-01`：搭建最小代码骨架：`src/`、`data/`、`configs/`、`reports/`、`tests/`。
+2. `P1-02`：建立 Python 工程配置。
 3. `P2-02`：实现第一个完整策略：均线多头 + 放量突破 + ATR 止损。
 4. `P3-01`：跑通单策略回测闭环。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。

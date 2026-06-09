@@ -13,6 +13,23 @@ Use this skill when the task needs market data collection, refresh jobs, storage
 - Extensions: evaluate Tushare for A-share paid/limited datasets, OpenBB for broad financial data, and yfinance for US stocks/ETF.
 - Never assume a source is complete. Record source name, fetch time, adjustment mode, and field definitions.
 
+## Reference Sources
+
+- P0 notes: `docs/research/04_p0_reference_notes.md`
+- AKShare GitHub: https://github.com/akfamily/akshare
+- AKShare stock data dictionary: https://akshare.akfamily.xyz/data/stock/stock.html
+- AKShare quick start: https://akshare.akfamily.xyz/tutorial.html
+- License: MIT
+
+## AKShare MVP Interfaces
+
+- `stock_info_a_code_name`: A-share instrument code/name universe.
+- `stock_zh_a_hist`: daily OHLCV and turnover data; always record `adjust`.
+- `stock_individual_fund_flow`: recent individual-stock money flow.
+- `stock_financial_analysis_indicator`: historical financial indicators by symbol and start year.
+
+Normalize provider-specific Chinese fields at the ingestion boundary. Keep source metadata so schema or API changes can be audited later.
+
 ## Workflow
 
 1. Define the target universe: market, board, industry, concept, index membership, listing status.
@@ -40,3 +57,10 @@ Data tasks should document:
 - Adjustment mode.
 - Row count and validation failures.
 
+## Implementation Notes
+
+- Create provider adapters instead of calling AKShare directly from strategies.
+- Unit tests should use fixture files; live AKShare calls belong in integration tests or manual smoke checks.
+- Store `provider`, `fetched_at`, `adjust`, and source parameters with each batch.
+- Preserve raw provider output when practical, then write normalized tables for downstream code.
+- Treat AKShare data as research input only; do not represent it as investment advice or guaranteed complete data.
