@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local data and generated reports
+data/raw/
+data/processed/
+data/cache/
+reports/generated/
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+*.csv
+*.xlsx
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+configs/local.*
+
+# Git metadata fallback
+.git/
+.repo-git/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
