@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 02:26 CST（Asia/Shanghai）
+更新时间：2026-06-10 02:35 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -33,6 +33,10 @@
 
 - `docs/PROJECT_TASKS.md`：项目任务清单，记录 `pending` / `in_progress` / `done` / `blocked` 状态。
 - `docs/AUTOMATION_RUNBOOK.md`：每轮自动推进规则、GitHub 更新规则和阻塞处理方式。
+
+已经完成 P0 参考项目深读：
+
+- `docs/research/04_p0_reference_notes.md`：AKShare、myhhub/stock、TA-Lib Python、backtesting.py、QuantStats 的 README/docs/examples/license 深读笔记和落地建议。
 
 ## 当前调研结论
 
@@ -76,10 +80,10 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P0-03`：深读 P0 项目的 README、docs、examples、license。
-2. `P0-04`：将 P0 skill 草案补充 references。
-3. `P1-01`：搭建最小代码骨架：`src/`、`data/`、`configs/`、`reports/`、`tests/`。
-4. `P2-02`：实现第一个完整策略：均线多头 + 放量突破 + ATR 止损。
+1. `P0-04`：将 P0 skill 草案补充 references。
+2. `P1-01`：搭建最小代码骨架：`src/`、`data/`、`configs/`、`reports/`、`tests/`。
+3. `P2-02`：实现第一个完整策略：均线多头 + 放量突破 + ATR 止损。
+4. `P3-01`：跑通单策略回测闭环。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
 
 每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交、推送到 GitHub。

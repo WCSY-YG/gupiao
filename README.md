@@ -18,6 +18,7 @@ A-share stock screening and buy/sell signal research project.
 - `docs/research/01_github_search_checklist.md`: GitHub search checklist.
 - `docs/research/02_github_project_registry.md`: researched GitHub project registry.
 - `docs/research/03_skill_distillation_plan.md`: skill distillation plan.
+- `docs/research/04_p0_reference_notes.md`: P0 reference project notes for implementation.
 
 ## Project Skills
 
