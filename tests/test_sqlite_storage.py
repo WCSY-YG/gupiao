@@ -117,3 +117,11 @@ class SQLiteStoreTest(TestCase):
                 provider="local_jingjia",
             )
             self.assertEqual(profiles, [profile])
+            self.assertEqual(
+                store.list_auction_profile_symbols(
+                    start=date(2026, 5, 1),
+                    end=date(2026, 5, 31),
+                    provider="local_jingjia",
+                ),
+                ["000001"],
+            )

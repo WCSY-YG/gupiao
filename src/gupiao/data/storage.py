@@ -328,6 +328,39 @@ class SQLiteStore:
             rows = connection.execute(sql, parameters).fetchall()
         return [auction_profile_from_row(row) for row in rows]
 
+    def list_auction_profile_symbols(
+        self,
+        *,
+        start: date | None = None,
+        end: date | None = None,
+        provider: str | None = None,
+        limit: int | None = None,
+    ) -> list[str]:
+        self.init_schema()
+        sql = """
+            SELECT DISTINCT symbol
+            FROM auction_profiles
+            WHERE 1 = 1
+        """
+        parameters: list[str | int] = []
+        if start is not None:
+            sql += " AND trade_date >= ?"
+            parameters.append(date_to_text(start) or "")
+        if end is not None:
+            sql += " AND trade_date <= ?"
+            parameters.append(date_to_text(end) or "")
+        if provider is not None:
+            sql += " AND provider = ?"
+            parameters.append(provider)
+        sql += " ORDER BY symbol"
+        if limit is not None:
+            sql += " LIMIT ?"
+            parameters.append(limit)
+
+        with self.connect() as connection:
+            rows = connection.execute(sql, parameters).fetchall()
+        return [row["symbol"] for row in rows]
+
     def connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row

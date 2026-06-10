@@ -206,7 +206,7 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. P6-05：基于 K 线与本地竞价画像做样本外回测，比较纯 K 线策略和竞价增强策略，迭代 skill 阈值和评分权重。
+1. P6-06：扩展竞价增强参数滚动验证，对不同月份、不同 `min_auction_score` 和 `auction_score_weight` 做对比，形成更稳健的参数建议。
 2. P6-02 完整全 A 股扫描仍是长期可恢复数据作业；需要时继续使用 `PYTHONPATH=src python -m gupiao.cli scan market --start 2023-06-10 --end 2026-06-10 --adjust hfq --db data/cache/market_scan.sqlite --output reports/generated/market_scan/latest --public-summary reports/summaries/latest_market_scan.md --top 30 --request-sleep 2.0 --retry-sleep 3 --request-timeout 60`。
 3. 原始行情、SQLite、逐股完整结果继续留在 `data/cache/` 和 `reports/generated/`，不提交 GitHub。
 4. 若全量扫描或竞价导入耗时过长或中断，重复运行同一命令即可复用 SQLite 缓存继续推进。
@@ -260,6 +260,15 @@ MVP 优先参考项目：
 - 已做真实小导入验证：`2026-05-06` 一个日文件读取 416,710 行快照，时间窗内 415,732 行，构建并写入 5,490 条 `local_jingjia` 竞价画像；当前 `auction_profiles` 覆盖日期为 `2026-05-06`。
 - `cache/jingjia` 当前有 29 个 RAR 月包（`202401.rar` 至 `202605.rar`），约 1.3G；29 个月全量导入是较长数据作业，建议先 dry-run，再按日期范围运行同一导入命令，原始 RAR 和 SQLite 不提交 GitHub。
 - 下一步 P6-05 应优先用已导入或继续导入后的竞价画像，对比 baseline 与 `local_jingjia` 竞价增强策略的近期样本外表现，再更新 `skills/stock-screening-strategies` 的阈值建议。
+
+## 2026-06-10 17:40 CST 竞价增强回测与 skill 迭代记忆
+
+- 新增 `PYTHONPATH=src python -m gupiao.cli research auction-compare`，从 SQLite 中读取日 K 和 `auction_profiles`，逐股对比 baseline 均线放量突破与竞价增强版本，并输出 `reports/generated/auction_validation/latest/` 完整结果和 `reports/summaries/latest_auction_validation.md` 小型汇总。
+- 已继续导入最近竞价缓存：`2026-05-06` 至 `2026-05-29` 共 18 个交易日文件，读取 7,461,068 行快照，时间窗内 7,448,345 行，构建 98,958 条画像，新增写入 93,468 条；当前 `auction_profiles` 覆盖 `2026-05-06` 至 `2026-05-29`、5,510 只股票。
+- 已完成近期真实对比：回测区间 `2026-01-01` 至 `2026-05-29`，竞价源 `local_jingjia`，参数 `min_auction_score=60`、`auction_score_weight=0.15`；处理 5,510 只，成功对比 5,187，只读/写本地完整结果，不提交逐股 JSONL。
+- 对比结论：baseline 平均收益 0.12%，auction 平均收益 -0.06%，平均收益差 -0.18%；竞价增强收益更高 249 只、更低 204 只，多数股票无交易差异。
+- Skill 迭代：不要把 `min_auction_score=60` 直接作为默认硬过滤；当前更合理的是把竞价强度、缺口、量比和委买委卖不平衡作为候选排序/解释辅助，待 P6-06 多月份滚动验证后再考虑默认阈值。
+- 已更新 `skills/stock-screening-strategies` 和 `skills/auction-data-integration`：竞价分可做软加权，硬过滤保持实验配置；`research auction-compare` 的 Markdown 汇总作为后续 skill 参数变更的证据来源。
 
 ## 注意事项
 

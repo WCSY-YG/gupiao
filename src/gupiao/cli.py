@@ -22,6 +22,7 @@ from gupiao.data import (
     import_local_daily_cache,
 )
 from gupiao.reports import build_markdown_report, write_markdown_report
+from gupiao.research import AuctionStrategyComparisonConfig, run_auction_strategy_comparison
 from gupiao.scan import DEFAULT_SCAN_END, DEFAULT_SCAN_START, MarketScanConfig, run_market_scan
 from gupiao.signals import build_breakout_signal
 from gupiao.strategies import MovingAverageVolumeBreakoutStrategy
@@ -142,6 +143,28 @@ def build_parser() -> argparse.ArgumentParser:
     report_breakout.add_argument("--title", default="MVP 策略报告")
     report_breakout.add_argument("--output", required=True)
     report_breakout.set_defaults(handler=handle_report_breakout)
+
+    research_parser = subparsers.add_parser("research", help="Run research experiments.")
+    research_subparsers = research_parser.add_subparsers(dest="research_command", required=True)
+    auction_compare = research_subparsers.add_parser(
+        "auction-compare",
+        help="Compare baseline and auction-enhanced breakout backtests from SQLite cache.",
+    )
+    auction_compare.add_argument("--start", required=True, type=parse_cli_date)
+    auction_compare.add_argument("--end", required=True, type=parse_cli_date)
+    auction_compare.add_argument("--adjust", choices=["raw", "qfq", "hfq"], default="hfq")
+    auction_compare.add_argument("--db", default="data/cache/market_scan.sqlite")
+    auction_compare.add_argument("--output", default="reports/generated/auction_validation/latest")
+    auction_compare.add_argument(
+        "--public-summary",
+        default="reports/summaries/latest_auction_validation.md",
+    )
+    auction_compare.add_argument("--auction-provider", default="local_jingjia")
+    auction_compare.add_argument("--top", type=positive_int, default=30)
+    auction_compare.add_argument("--limit", type=positive_int, default=None)
+    add_strategy_args(auction_compare)
+    add_backtest_args(auction_compare)
+    auction_compare.set_defaults(handler=handle_research_auction_compare)
 
     scan_parser = subparsers.add_parser("scan", help="Run market-wide automation tasks.")
     scan_subparsers = scan_parser.add_subparsers(dest="scan_command", required=True)
@@ -332,6 +355,45 @@ def handle_report_breakout(args: argparse.Namespace) -> None:
     write_json_object({"path": str(path), "symbol": args.symbol})
 
 
+def handle_research_auction_compare(args: argparse.Namespace) -> None:
+    baseline_strategy = strategy_from_args(args, use_auction_filters=False)
+    min_auction_score = 60.0 if args.min_auction_score is None else args.min_auction_score
+    args.min_auction_score = min_auction_score
+    auction_strategy = strategy_from_args(args, use_auction_filters=True)
+    config = AuctionStrategyComparisonConfig(
+        start=args.start,
+        end=args.end,
+        adjust=args.adjust,
+        db_path=args.db,
+        output_dir=args.output,
+        public_summary_path=args.public_summary,
+        auction_provider=args.auction_provider,
+        top=args.top,
+        limit=args.limit,
+        min_auction_score=min_auction_score,
+        auction_score_weight=args.auction_score_weight,
+    )
+    result = run_auction_strategy_comparison(
+        config=config,
+        baseline_strategy=baseline_strategy,
+        auction_strategy=auction_strategy,
+        backtest_config=backtest_config_from_args(args),
+    )
+    write_json_object(
+        {
+            "public_summary": result.public_summary_path,
+            "result_path": result.result_path,
+            "failure_path": result.failure_path,
+            "processed": result.processed,
+            "succeeded": result.succeeded,
+            "failed": result.failed,
+            "no_data": result.no_data,
+            "improved": result.improved,
+            "worsened": result.worsened,
+        }
+    )
+
+
 def handle_scan_market(args: argparse.Namespace) -> None:
     config = MarketScanConfig(
         start=args.start,
@@ -398,7 +460,13 @@ def add_backtest_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--max-holding-bars", type=positive_int, default=20)
 
 
-def strategy_from_args(args: argparse.Namespace) -> MovingAverageVolumeBreakoutStrategy:
+def strategy_from_args(
+    args: argparse.Namespace,
+    *,
+    use_auction_filters: bool = True,
+) -> MovingAverageVolumeBreakoutStrategy:
+    min_auction_score = args.min_auction_score if use_auction_filters else None
+    auction_score_weight = args.auction_score_weight if use_auction_filters else 0.0
     return MovingAverageVolumeBreakoutStrategy(
         short_window=args.short_window,
         medium_window=args.medium_window,
@@ -406,8 +474,8 @@ def strategy_from_args(args: argparse.Namespace) -> MovingAverageVolumeBreakoutS
         volume_window=args.volume_window,
         breakout_window=args.breakout_window,
         min_volume_ratio=args.min_volume_ratio,
-        min_auction_score=args.min_auction_score,
-        auction_score_weight=args.auction_score_weight,
+        min_auction_score=min_auction_score,
+        auction_score_weight=auction_score_weight,
     )
 
 

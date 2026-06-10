@@ -51,8 +51,9 @@ Borrow the batch-job split from myhhub/stock without copying its full deployment
 
 - Baseline strategy: `MovingAverageVolumeBreakoutStrategy`.
 - Stored auction provider: `local_jingjia` in SQLite `auction_profiles`.
-- Use `min_auction_score` as an optional hard filter and `auction_score_weight` as a bounded blend into candidate score.
+- Use `auction_score_weight` as a bounded blend into candidate score; keep `min_auction_score` as an experiment-only hard filter until rolling validation proves it helps.
 - Keep auction metrics in candidate explanations: `auction_strength_score`, `auction_gap_pct`, `auction_volume_ratio_to_daily`, and `auction_bid_ask_imbalance`.
+- Latest validation note: 2026-01-01 to 2026-05-29 with May 2026 `local_jingjia` profiles showed `min_auction_score=60` and `auction_score_weight=0.15` did not improve average return, so prefer soft ranking/diagnostics over default hard filtering.
 
 ## Validation
 

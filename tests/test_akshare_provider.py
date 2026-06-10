@@ -284,3 +284,25 @@ class AkshareProviderTest(TestCase):
         self.assertEqual(args.end, date(2026, 5, 29))
         self.assertEqual(args.limit_files, 2)
         self.assertTrue(args.dry_run)
+
+    def test_cli_research_auction_compare_arguments_parse_without_running(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "research",
+                "auction-compare",
+                "--start",
+                "2026-01-01",
+                "--end",
+                "2026-05-31",
+                "--auction-provider",
+                "local_jingjia",
+                "--limit",
+                "10",
+            ]
+        )
+
+        self.assertEqual(args.start, date(2026, 1, 1))
+        self.assertEqual(args.end, date(2026, 5, 31))
+        self.assertEqual(args.auction_provider, "local_jingjia")
+        self.assertEqual(args.limit, 10)
+        self.assertEqual(args.public_summary, "reports/summaries/latest_auction_validation.md")

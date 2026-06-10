@@ -47,6 +47,7 @@ Run with `--dry-run` first for counts. Use `--conflict replace` only when intent
 - Avoid over-heated opens: a very high positive gap without volume support should be penalized or filtered.
 - Keep auction scoring explainable: output gap, volume ratio, range, and score in candidate metrics.
 - Market scans can opt into stored profiles with `scan market --auction-provider local_jingjia --min-auction-score 60 --auction-score-weight 0.15`.
+- Treat `min_auction_score` as experimental. The 2026-05 validation run favored using auction score as a soft ranking signal before making it a hard gate.
 
 ## Backtest Rules
 
@@ -55,6 +56,7 @@ Run with `--dry-run` first for counts. Use `--conflict replace` only when intent
 - If only latest AKShare auction minutes are available, use them for live screening or smoke tests, not historical performance claims.
 - Compare at least two variants: baseline K-line strategy and K-line plus auction-enhanced strategy.
 - Run rolling or recent-window validation to detect auction-signal decay.
+- Use `research auction-compare` to produce `reports/summaries/latest_auction_validation.md`; update strategy defaults only from that kind of out-of-sample evidence.
 
 ## Iteration Loop
 

@@ -287,6 +287,29 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli scan market --limit 3
 - `--min-auction-score`：要求候选日存在竞价画像且竞价强度不低于阈值。
 - `--auction-score-weight`：候选排序分中竞价分的混合权重。
 
+### 对比竞价增强策略表现
+
+导入本地竞价画像后，可以用同一批股票、同一区间对比“纯 K 线均线放量突破”和“竞价增强版本”：
+
+```bash
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli research auction-compare \
+  --start 2026-01-01 \
+  --end 2026-05-29 \
+  --db data/cache/market_scan.sqlite \
+  --auction-provider local_jingjia \
+  --output reports/generated/auction_validation/latest \
+  --public-summary reports/summaries/latest_auction_validation.md \
+  --top 30 \
+  --min-auction-score 60 \
+  --auction-score-weight 0.15
+```
+
+产物规则：
+
+- `reports/generated/auction_validation/latest/`：逐股完整对比结果，不提交。
+- `reports/summaries/latest_auction_validation.md`：可提交的小型汇总，用来记录本轮 skill 迭代证据。
+- 若汇总显示竞价硬过滤没有稳定改善，应先把竞价作为排序和解释辅助，而不是直接提升为默认强过滤。
+
 ## 推荐工作流
 
 1. 安装开发依赖和数据依赖。
@@ -298,7 +321,8 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli scan market --limit 3
 7. 用 `report breakout` 生成中文研究报告。
 8. 用 `data import-daily-cache` 和 `data import-auction-cache` 整合本地缓存。
 9. 用 `scan market` 批量扫描全 A 股，并提交小型汇总。
-10. 扩展策略、指标、因子或报告模板，并补充测试。
+10. 用 `research auction-compare` 对比竞价增强策略并更新 skill 阈值建议。
+11. 扩展策略、指标、因子或报告模板，并补充测试。
 
 ## 项目文档
 
