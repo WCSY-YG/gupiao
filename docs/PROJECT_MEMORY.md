@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 11:24 CST（Asia/Shanghai）
+更新时间：2026-06-10 11:29 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -205,8 +205,8 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. P6-02：运行完整全 A 股扫描并提交 `reports/summaries/latest_market_scan.md`。
-2. 完整扫描命令使用 `scan market`，默认区间 `2023-06-10` 至 `2026-06-10`，默认复权 `hfq`。
+1. P6-02：正在运行完整全 A 股扫描并提交 `reports/summaries/latest_market_scan.md`。
+2. 完整扫描命令使用 `PYTHONPATH=src python -m gupiao.cli scan market --start 2023-06-10 --end 2026-06-10 --adjust hfq --db data/cache/market_scan.sqlite --output reports/generated/market_scan/latest --public-summary reports/summaries/latest_market_scan.md --top 30`。
 3. 原始行情、SQLite、逐股完整结果继续留在 `data/cache/` 和 `reports/generated/`，不提交 GitHub。
 4. 若全量扫描耗时过长或中断，重复运行同一命令即可复用 SQLite 缓存继续推进。
 5. 后续可继续扩展策略实验、报告模板、组合优化和模拟交易风控。
