@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 09:50 CST（Asia/Shanghai）
+更新时间：2026-06-10 09:56 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -125,6 +125,13 @@
 - CLI 输出 JSON，报告命令生成 Markdown 文件。
 - 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 37 项。
 
+已经完成 Web Dashboard 初版：
+
+- `build_dashboard_html` 输出自包含静态 HTML，包含 KPI、候选指标、买卖点、权益曲线 SVG、交易明细和风险提示。
+- `write_dashboard_html` 支持仪表盘落盘。
+- 暂不引入前端构建链；后续如需交互式 Dashboard，再接 FastAPI/Web UI。
+- 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 39 项。
+
 ## 同步状态
 
 - `push_pending`：GitHub 推送凭据暂不可用，按用户最新指令先继续推进任务。
@@ -172,10 +179,10 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P4-02`：搭建 Web Dashboard 初版。
-2. `P5-01`：扩展多因子研究。
-3. `P5-02`：探索 ML 评分与组合优化。
-4. 后续：组合优化、模拟交易风控、更多数据源适配。
+1. `P5-01`：扩展多因子研究。
+2. `P5-02`：探索 ML 评分与组合优化。
+3. 后续：组合优化、模拟交易风控、更多数据源适配。
+4. 等 GitHub 凭据恢复后同步所有 `push_pending` 提交。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
 
 每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交本地 Git。GitHub 推送恢复后再同步 `push_pending` 提交。
