@@ -241,6 +241,16 @@ MVP 优先参考项目：
 - 历史竞价回测应优先导入本地 `cache/jingjia/*.rar` 的历史快照，按 `symbol + trade_date` 生成 `AuctionProfile` 后注入回测。
 - 竞价增强策略必须保留时间边界：开盘前决策只能使用竞价时间戳之前的数据，不能用同日收盘/最高/最低反推。
 
+## 2026-06-10 17:08 CST 竞价增强交接记录
+
+- 本轮在 `main` 完成并推送提交 `c27459a feat: add auction-aware screening workflow`，远端 `origin/main` 已同步；远端地址为 `ssh://git@ssh.github.com:443/WCSY-YG/gupiao.git`。
+- 已按用户要求保持 README 中文说明，并记录后续 Python 命令默认使用 conda `agent` 环境。
+- 新增/更新的核心能力：AKShare 当日盘前分钟数据接入、竞价画像与评分、放量突破策略竞价加权/过滤、回测按交易日注入 `AuctionProfile`、竞价研究样本生成、`skills/auction-data-integration`。
+- 已修正研究样本的未来函数隐患：竞价日样本特征只使用竞价画像和前一交易日 K 线特征，目标收益从竞价日开盘价向后计算；不能把当天收盘相对开盘等盘后信息作为盘前特征。
+- 已执行并通过验证：`conda run -n agent ruff check src/gupiao/auction src/gupiao/strategies/screening.py src/gupiao/backtest/engine.py src/gupiao/research/experiments.py tests/test_auction_features.py tests/test_screening_strategy.py tests/test_backtest_engine.py tests/test_research_experiments.py`、`conda run -n agent python -m compileall -q src tests`、`conda run -n agent env PYTHONPATH=src python -m unittest discover -s tests`（66 项通过）、`conda run -n agent env PYTHONPATH=src python -m gupiao.cli --version`（输出 `0.2.0`）。
+- 当前工作区在提交后应保持 `main...origin/main` 干净；若其他线程接手，先运行 `git status --short --branch` 复核。
+- 下一步建议优先执行 P6-04：将 `cache/jingjia/*.rar` 历史集合竞价快照解析成专门表或画像缓存，再执行 P6-05 对比“纯 K 线策略”和“竞价增强策略”的近期滚动回测，迭代 skill 阈值和评分权重。
+
 ## 注意事项
 
 - 当前项目定位为研究与辅助分析工具，不默认接入真实交易。
