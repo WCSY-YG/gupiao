@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 09:27 CST（Asia/Shanghai）
+更新时间：2026-06-10 09:30 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -83,6 +83,13 @@
 - TA-Lib 仍作为后续可选依赖，不阻塞当前 MVP。
 - 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 20 项。
 
+已经完成第一个 MVP 选股策略：
+
+- `MovingAverageVolumeBreakoutStrategy` 实现均线多头 + 放量突破 + 成交量放大过滤。
+- 输出 `ScreeningCandidate`，包含 symbol、trade_date、strategy、score、reasons、metrics。
+- 策略会先检查日线数据质量；存在 error 时跳过候选。
+- 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 24 项。
+
 ## 同步状态
 
 - `push_pending`：GitHub 推送凭据暂不可用，按用户最新指令先继续推进任务。
@@ -130,10 +137,10 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P2-02`：实现第一个完整策略：均线多头 + 放量突破 + ATR 止损。
-2. `P2-03`：实现买卖点解释。
-3. `P3-01`：跑通单策略回测闭环。
-4. `P3-02`：加入 A 股交易约束。
+1. `P2-03`：实现买卖点解释。
+2. `P3-01`：跑通单策略回测闭环。
+3. `P3-02`：加入 A 股交易约束。
+4. `P3-03`：生成中文绩效报告。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
 
 每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交本地 Git。GitHub 推送恢复后再同步 `push_pending` 提交。

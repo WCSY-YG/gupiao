@@ -1,6 +1,6 @@
 # 项目任务清单
 
-更新时间：2026-06-10 09:27 CST
+更新时间：2026-06-10 09:30 CST
 
 本文档是项目自动推进的状态源。每一轮任务开始前先读取本文件；每完成一个任务，必须更新状态并本地提交。GitHub 推送若失败，记录 `push_pending` 后继续推进。
 
@@ -16,7 +16,7 @@
 ## 当前指针
 
 - 当前阶段：Phase 2。
-- 下一项任务：`P2-02` 实现第一个 MVP 选股策略。
+- 下一项任务：`P2-03` 实现买卖点解释。
 - 推进规则：从上到下选择第一个 `pending` 且依赖已完成的任务。
 - GitHub 更新规则：每完成一个任务，更新本清单和相关项目记忆，执行一次本地 commit；远端推送失败时记录 `push_pending`，不阻塞后续任务。
 
@@ -35,7 +35,7 @@
 | P1-04 | done | Phase 1 | 设计并实现本地数据存储 | SQLite/DuckDB/Parquet 方案可写入、读取、增量更新 | P1-03 |
 | P1-05 | done | Phase 1 | 加入数据质量检查 | 覆盖缺失值、停牌、复权、重复记录、时间顺序等基础校验 | P1-04 |
 | P2-01 | done | Phase 2 | 实现技术指标层 | MA、EMA、MACD、KDJ、RSI、BOLL、ATR、OBV 等可计算 | P1-05 |
-| P2-02 | pending | Phase 2 | 实现第一个 MVP 选股策略 | 均线多头 + 放量突破策略输出候选股和命中原因 | P2-01 |
+| P2-02 | done | Phase 2 | 实现第一个 MVP 选股策略 | 均线多头 + 放量突破策略输出候选股和命中原因 | P2-01 |
 | P2-03 | pending | Phase 2 | 实现买卖点解释 | 输出入场、加仓、减仓、止损、止盈、信号失效条件 | P2-02 |
 | P3-01 | pending | Phase 3 | 实现单策略回测闭环 | 支持手续费、滑点、基础收益/回撤/胜率指标 | P2-03 |
 | P3-02 | pending | Phase 3 | 加入 A 股交易约束 | T+1、涨跌停、停牌约束进入回测假设 | P3-01 |
@@ -56,3 +56,4 @@
 - 2026-06-10 09:13 CST：完成 SQLite 本地存储，支持 instruments 和 daily bars 建表、upsert、查询与增量覆盖；已通过 `compileall`、CLI version、`unittest` 9 项；GitHub 远端同步继续记为 `push_pending`。
 - 2026-06-10 09:23 CST：完成数据质量检查层，覆盖 instruments 重复/缺失、日线重复、时间顺序、OHLC、负成交量/成交额/换手率、零成交量停牌提示；已通过 `compileall`、CLI version、`unittest` 14 项；GitHub 远端同步继续记为 `push_pending`。
 - 2026-06-10 09:27 CST：完成纯 Python 技术指标层，支持 SMA/EMA/MACD/KDJ/RSI/BOLL/ATR/OBV 和收盘价抽取；已通过 `compileall`、CLI version、`unittest` 20 项；GitHub 远端同步继续记为 `push_pending`。
+- 2026-06-10 09:30 CST：完成均线多头 + 放量突破 MVP 选股策略，输出候选股、分数、命中原因和关键指标；已通过 `compileall`、CLI version、`unittest` 24 项；GitHub 远端同步继续记为 `push_pending`。
