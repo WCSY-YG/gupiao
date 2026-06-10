@@ -1,6 +1,6 @@
 # 项目任务清单
 
-更新时间：2026-06-10 10:03 CST
+更新时间：2026-06-10 11:20 CST
 
 本文档是项目自动推进的状态源。每一轮任务开始前先读取本文件；每完成一个任务，必须更新状态并本地提交。GitHub 推送若失败，记录 `push_pending` 后继续推进。
 
@@ -15,8 +15,8 @@
 
 ## 当前指针
 
-- 当前阶段：Phase 5。
-- 下一项任务：全部计划任务已完成；等待 GitHub 凭据恢复后同步 `push_pending`。
+- 当前阶段：Phase 6。
+- 下一项任务：P6-02，运行完整全 A 股扫描并提交轻量汇总。
 - 推进规则：从上到下选择第一个 `pending` 且依赖已完成的任务。
 - GitHub 更新规则：每完成一个任务，更新本清单和相关项目记忆，执行一次本地 commit；远端推送失败时记录 `push_pending`，不阻塞后续任务。
 
@@ -44,6 +44,8 @@
 | P4-02 | done | Phase 4 | 搭建 Web Dashboard 初版 | 可浏览候选池、K 线指标、回测图和报告摘要 | P4-01 |
 | P5-01 | done | Phase 5 | 扩展多因子研究 | 价值、质量、成长、动量、波动率、流动性综合打分 | P4-02 |
 | P5-02 | done | Phase 5 | 探索 ML 评分与组合优化 | 有实验脚手架、样本外验证和风险说明 | P5-01 |
+| P6-01 | done | Phase 6 | 实现可恢复全 A 股市场扫描流水线 | `scan market` 支持 AKShare 全市场拉取、SQLite 缓存、逐股回测、失败不中断和轻量 Markdown 汇总 | P5-02 |
+| P6-02 | pending | Phase 6 | 运行完整全 A 股扫描并提交轻量汇总 | 无 `--limit` 跑完 2023-06-10 至 2026-06-10 全 A 股，提交 `reports/summaries/latest_market_scan.md` | P6-01 |
 
 ## 完成记录
 
@@ -65,3 +67,4 @@
 - 2026-06-10 09:56 CST：完成静态 Web Dashboard 初版，支持 KPI、候选、买卖点、权益曲线 SVG、交易明细和风险提示；已通过 `compileall`、CLI version、`unittest` 39 项；GitHub 远端同步继续记为 `push_pending`。
 - 2026-06-10 10:00 CST：完成多因子研究工具，支持价值、质量、成长、动量、波动率、流动性加权归一化排名；已通过 `compileall`、CLI version、`unittest` 41 项；GitHub 远端同步继续记为 `push_pending`。
 - 2026-06-10 10:03 CST：完成 ML 评分与组合优化研究脚手架，支持训练/验证切分、线性基线预测和按评分分配组合权重；已通过 `compileall`、CLI version、`unittest` 45 项；GitHub 远端同步继续记为 `push_pending`。
+- 2026-06-10 11:20 CST：完成可恢复全 A 股市场扫描入口，新增 `scan market`、SQLite 缓存复用、逐股失败不中断、轻量公开汇总和 5 项扫描测试；已通过 `compileall`、CLI help、`unittest` 50 项；已安装 AKShare 并完成 3 只股票真实 smoke test，生成 `reports/summaries/smoke_market_scan.md`。

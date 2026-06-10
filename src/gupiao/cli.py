@@ -13,6 +13,7 @@ from typing import Any
 from gupiao.backtest import BacktestConfig, run_breakout_backtest
 from gupiao.data import AkshareProvider, DailyBar, SQLiteStore
 from gupiao.reports import build_markdown_report, write_markdown_report
+from gupiao.scan import DEFAULT_SCAN_END, DEFAULT_SCAN_START, MarketScanConfig, run_market_scan
 from gupiao.signals import build_breakout_signal
 from gupiao.strategies import MovingAverageVolumeBreakoutStrategy
 
@@ -90,6 +91,26 @@ def build_parser() -> argparse.ArgumentParser:
     report_breakout.add_argument("--title", default="MVP 策略报告")
     report_breakout.add_argument("--output", required=True)
     report_breakout.set_defaults(handler=handle_report_breakout)
+
+    scan_parser = subparsers.add_parser("scan", help="Run market-wide automation tasks.")
+    scan_subparsers = scan_parser.add_subparsers(dest="scan_command", required=True)
+    scan_market = scan_subparsers.add_parser(
+        "market",
+        help="Fetch A-share daily bars and run a recoverable market scan.",
+    )
+    scan_market.add_argument("--start", type=parse_cli_date, default=DEFAULT_SCAN_START)
+    scan_market.add_argument("--end", type=parse_cli_date, default=DEFAULT_SCAN_END)
+    scan_market.add_argument("--adjust", choices=["raw", "qfq", "hfq"], default="hfq")
+    scan_market.add_argument("--db", default="data/cache/market_scan.sqlite")
+    scan_market.add_argument("--output", default="reports/generated/market_scan/latest")
+    scan_market.add_argument("--public-summary", default="reports/summaries/latest_market_scan.md")
+    scan_market.add_argument("--top", type=positive_int, default=30)
+    scan_market.add_argument("--limit", type=positive_int, default=None)
+    scan_market.add_argument("--retries", type=positive_int, default=3)
+    scan_market.add_argument("--retry-sleep", type=non_negative_float, default=1.0)
+    add_strategy_args(scan_market)
+    add_backtest_args(scan_market)
+    scan_market.set_defaults(handler=handle_scan_market)
 
     return parser
 
@@ -205,6 +226,39 @@ def handle_report_breakout(args: argparse.Namespace) -> None:
     write_json_object({"path": str(path), "symbol": args.symbol})
 
 
+def handle_scan_market(args: argparse.Namespace) -> None:
+    config = MarketScanConfig(
+        start=args.start,
+        end=args.end,
+        adjust=args.adjust,
+        db_path=args.db,
+        output_dir=args.output,
+        public_summary_path=args.public_summary,
+        top=args.top,
+        limit=args.limit,
+        retries=args.retries,
+        retry_sleep_seconds=args.retry_sleep,
+    )
+    result = run_market_scan(
+        AkshareProvider(),
+        config=config,
+        strategy=strategy_from_args(args),
+        backtest_config=backtest_config_from_args(args),
+    )
+    write_json_object(
+        {
+            "public_summary": result.public_summary_path,
+            "result_path": result.result_path,
+            "failure_path": result.failure_path,
+            "processed": result.processed,
+            "succeeded": result.succeeded,
+            "failed": result.failed,
+            "no_data": result.no_data,
+            "candidate_count": result.candidate_count,
+        }
+    )
+
+
 def add_bars_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--bars", required=True, help="Path to daily bars JSONL.")
     parser.add_argument("--symbol", required=True)
@@ -278,6 +332,8 @@ def to_jsonable(value: Any) -> Any:
         return [to_jsonable(item) for item in value]
     if isinstance(value, tuple):
         return [to_jsonable(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     return value
@@ -328,6 +384,13 @@ def positive_int(value: str) -> int:
     parsed = int(value)
     if parsed <= 0:
         raise argparse.ArgumentTypeError("expected a positive integer")
+    return parsed
+
+
+def non_negative_float(value: str) -> float:
+    parsed = float(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("expected a non-negative float")
     return parsed
 
 

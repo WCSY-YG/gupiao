@@ -11,6 +11,7 @@ from gupiao.data.akshare_provider import (
     normalize_symbol,
 )
 from gupiao.data.schema import DailyBar
+from gupiao.scan import DEFAULT_SCAN_END, DEFAULT_SCAN_START
 
 
 class FakeFrame:
@@ -147,3 +148,15 @@ class AkshareProviderTest(TestCase):
         self.assertEqual(args.start, date(2026, 6, 1))
         self.assertEqual(args.end, date(2026, 6, 9))
         self.assertEqual(args.limit, 5)
+
+    def test_cli_scan_market_defaults_parse_without_fetching(self) -> None:
+        args = build_parser().parse_args(["scan", "market"])
+
+        self.assertEqual(args.start, DEFAULT_SCAN_START)
+        self.assertEqual(args.end, DEFAULT_SCAN_END)
+        self.assertEqual(args.adjust, "hfq")
+        self.assertEqual(args.db, "data/cache/market_scan.sqlite")
+        self.assertEqual(args.output, "reports/generated/market_scan/latest")
+        self.assertEqual(args.public_summary, "reports/summaries/latest_market_scan.md")
+        self.assertEqual(args.top, 30)
+        self.assertEqual(args.retries, 3)

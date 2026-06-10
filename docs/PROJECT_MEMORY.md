@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 10:03 CST（Asia/Shanghai）
+更新时间：2026-06-10 11:20 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -146,10 +146,22 @@
 - `allocate_by_score` 支持按预测评分生成 top N 组合权重并做权重上限控制。
 - 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 45 项。
 
+已经完成可恢复全 A 股市场扫描自动化入口：
+
+- `scan market` 支持通过 AKShare 获取全 A 股列表，逐只拉取日线并写入 SQLite 缓存。
+- 支持中断后复用已有 SQLite 日线数据；单只股票失败不会终止全局扫描。
+- 每只股票执行数据质量检查、MVP 策略筛选、买卖点生成和回测。
+- 本地完整结果写入 `reports/generated/market_scan/...`，原始行情和 SQLite 写入 `data/cache/...`，这些路径继续被 Git 忽略。
+- 可提交的小型 Markdown 汇总写入 `reports/summaries/...`。
+- 新增 5 项扫描测试，覆盖成功扫描、单只失败、空数据、缓存复用、Top N 汇总和 CLI 默认参数。
+- 验证：`compileall` 通过，`PYTHONPATH=src python -m unittest discover -s tests` 通过 50 项，`PYTHONPATH=src python -m gupiao.cli scan market --help` 正常。
+- 已安装 AKShare data extras，并完成 3 只股票真实 smoke test：处理 3、成功 3、失败 0、无数据 0、当前候选 0；提交小汇总 `reports/summaries/smoke_market_scan.md`。
+
 ## 同步状态
 
-- `push_pending`：GitHub 推送凭据暂不可用，按用户最新指令先继续推进任务。
-- 待推送本地提交起点：`85225e2 build: add python project tooling` 及其后的本地提交。
+- GitHub 推送已经恢复过一次，README 中文使用说明提交已成功推送到 `main`。
+- 本轮 Phase 6 代码、文档和 smoke 小汇总完成后继续本地提交并尝试推送。
+- 若后续 GitHub push 是网络问题，重试；若是 SSH/403 权限问题，记录 `push_pending` 并继续任务。
 
 ## 当前调研结论
 
@@ -193,11 +205,11 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. 全部当前任务清单已完成。
-2. 等 GitHub 凭据恢复后同步所有 `push_pending` 提交。
-3. 后续可继续补充真实数据样例、策略实验和报告模板。
-4. 后续可扩展组合优化、模拟交易风控、更多数据源适配。
-5. 当前 MVP 已跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
+1. P6-02：运行完整全 A 股扫描并提交 `reports/summaries/latest_market_scan.md`。
+2. 完整扫描命令使用 `scan market`，默认区间 `2023-06-10` 至 `2026-06-10`，默认复权 `hfq`。
+3. 原始行情、SQLite、逐股完整结果继续留在 `data/cache/` 和 `reports/generated/`，不提交 GitHub。
+4. 若全量扫描耗时过长或中断，重复运行同一命令即可复用 SQLite 缓存继续推进。
+5. 后续可继续扩展策略实验、报告模板、组合优化和模拟交易风控。
 
 每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交本地 Git。GitHub 推送恢复后再同步 `push_pending` 提交。
 

@@ -1,6 +1,6 @@
 # 项目自动推进运行规则
 
-更新时间：2026-06-10 09:12 CST
+更新时间：2026-06-10 11:20 CST
 
 监控目标：`/home/yangtingjie/AI_Tool/gupiao`
 
@@ -36,6 +36,7 @@
 - 数据源、依赖、存储模型、回测假设变化。
 - 新增 CLI/API/UI 行为。
 - 测试、构建、回测或数据质量检查失败。
+- 批量扫描产物边界：`data/cache/`、`reports/generated/` 和 SQLite/CSV 等大文件只留本地；仅提交 `reports/summaries/` 下的小型 Markdown 汇总。
 - GitHub 推送失败、`push_pending` 状态或需要人工凭据/权限处理。
 
 ## 阻塞处理

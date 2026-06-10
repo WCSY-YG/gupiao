@@ -15,6 +15,7 @@ A-share stock screening and buy/sell signal research toolkit.
 - A 股约束回测：T+1、涨跌停、停牌、手续费、滑点。
 - 中文 Markdown 绩效报告和自包含静态 HTML Dashboard。
 - 多因子评分、轻量 ML 评分和组合权重研究脚手架。
+- 可恢复的全 A 股市场扫描，批量拉取日线、回测并生成轻量汇总。
 - GitHub 高星项目调研，并蒸馏为项目内 reusable skills。
 
 ## 安装
@@ -152,6 +153,39 @@ PYTHONPATH=src python -m gupiao.cli report breakout --bars data/000001_daily.jso
 
 报告内容包括候选股、买卖点计划、回测指标、交易明细、风险提示和回测假设。
 
+### 运行全 A 股市场扫描
+
+需要先安装 `akshare`：
+
+```bash
+python -m pip install -e ".[data]"
+```
+
+默认扫描区间为 `2023-06-10` 至 `2026-06-10`，复权方式为 `hfq`。完整扫描命令：
+
+```bash
+PYTHONPATH=src python -m gupiao.cli scan market \
+  --start 2023-06-10 \
+  --end 2026-06-10 \
+  --adjust hfq \
+  --db data/cache/market_scan.sqlite \
+  --output reports/generated/market_scan/latest \
+  --public-summary reports/summaries/latest_market_scan.md \
+  --top 30
+```
+
+先做 3 只股票 smoke test：
+
+```bash
+PYTHONPATH=src python -m gupiao.cli scan market --limit 3 --retry-sleep 0 --public-summary reports/summaries/smoke_market_scan.md
+```
+
+产物规则：
+
+- `data/cache/market_scan.sqlite`：本地行情缓存和可恢复扫描状态，不提交。
+- `reports/generated/market_scan/latest/`：本地完整逐股结果和失败明细，不提交。
+- `reports/summaries/latest_market_scan.md`：轻量公开汇总，可提交到 GitHub。
+
 ## 推荐工作流
 
 1. 安装开发依赖和数据依赖。
@@ -161,7 +195,8 @@ PYTHONPATH=src python -m gupiao.cli report breakout --bars data/000001_daily.jso
 5. 用 `signal breakout` 解释买卖点。
 6. 用 `backtest breakout` 验证策略表现。
 7. 用 `report breakout` 生成中文研究报告。
-8. 扩展策略、指标、因子或报告模板，并补充测试。
+8. 用 `scan market` 批量扫描全 A 股，并提交小型汇总。
+9. 扩展策略、指标、因子或报告模板，并补充测试。
 
 ## 项目文档
 
