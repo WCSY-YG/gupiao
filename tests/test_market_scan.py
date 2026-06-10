@@ -112,6 +112,31 @@ class MarketScanTest(TestCase):
             self.assertEqual(result.fetched, 0)
             self.assertEqual(result.results[0].status, "success")
 
+    def test_market_scan_sleeps_after_external_fetch_only(self) -> None:
+        with TemporaryDirectory() as directory:
+            sleeps: list[float] = []
+            provider = FakeMarketProvider({"000001": breakout_bars()})
+            config = MarketScanConfig(
+                start=date(2026, 6, 1),
+                end=date(2026, 6, 20),
+                db_path=f"{directory}/scan.sqlite",
+                output_dir=f"{directory}/generated",
+                public_summary_path=f"{directory}/summary.md",
+                limit=1,
+                retry_sleep_seconds=0,
+                request_sleep_seconds=0.25,
+            )
+
+            run_market_scan(
+                provider,
+                config=config,
+                strategy=small_strategy(),
+                backtest_config=BacktestConfig(atr_window=3, max_holding_bars=2),
+                sleep=sleeps.append,
+            )
+
+            self.assertEqual(sleeps, [0.25])
+
     def test_ranked_candidates_sort_by_score_then_return(self) -> None:
         rows = [
             ScanSymbolResult(

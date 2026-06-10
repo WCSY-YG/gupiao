@@ -108,6 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan_market.add_argument("--limit", type=positive_int, default=None)
     scan_market.add_argument("--retries", type=positive_int, default=3)
     scan_market.add_argument("--retry-sleep", type=non_negative_float, default=1.0)
+    scan_market.add_argument("--request-sleep", type=non_negative_float, default=0.0)
     add_strategy_args(scan_market)
     add_backtest_args(scan_market)
     scan_market.set_defaults(handler=handle_scan_market)
@@ -238,6 +239,7 @@ def handle_scan_market(args: argparse.Namespace) -> None:
         limit=args.limit,
         retries=args.retries,
         retry_sleep_seconds=args.retry_sleep,
+        request_sleep_seconds=args.request_sleep,
     )
     result = run_market_scan(
         AkshareProvider(),

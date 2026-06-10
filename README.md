@@ -171,13 +171,14 @@ PYTHONPATH=src python -m gupiao.cli scan market \
   --db data/cache/market_scan.sqlite \
   --output reports/generated/market_scan/latest \
   --public-summary reports/summaries/latest_market_scan.md \
-  --top 30
+  --top 30 \
+  --request-sleep 0.3
 ```
 
 先做 3 只股票 smoke test：
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli scan market --limit 3 --retry-sleep 0 --public-summary reports/summaries/smoke_market_scan.md
+PYTHONPATH=src python -m gupiao.cli scan market --limit 3 --retry-sleep 0 --request-sleep 0.1 --public-summary reports/summaries/smoke_market_scan.md
 ```
 
 产物规则：
@@ -185,6 +186,7 @@ PYTHONPATH=src python -m gupiao.cli scan market --limit 3 --retry-sleep 0 --publ
 - `data/cache/market_scan.sqlite`：本地行情缓存和可恢复扫描状态，不提交。
 - `reports/generated/market_scan/latest/`：本地完整逐股结果和失败明细，不提交。
 - `reports/summaries/latest_market_scan.md`：轻量公开汇总，可提交到 GitHub。
+- `--request-sleep`：每次真实行情请求后的节流秒数，缓存命中不会等待；接口断连较多时可调大。
 
 ## 推荐工作流
 

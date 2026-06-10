@@ -39,6 +39,7 @@ class MarketScanConfig:
     limit: int | None = None
     retries: int = 3
     retry_sleep_seconds: float = 1.0
+    request_sleep_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -167,6 +168,7 @@ def scan_instrument(
                 adjust=config.adjust,
                 retries=config.retries,
                 retry_sleep_seconds=config.retry_sleep_seconds,
+                request_sleep_seconds=config.request_sleep_seconds,
                 sleep=sleep,
             )
             data_source = "fetched"
@@ -247,14 +249,18 @@ def fetch_daily_bars_with_retries(
     adjust: str,
     retries: int,
     retry_sleep_seconds: float,
+    request_sleep_seconds: float,
     sleep: Callable[[float], None],
 ) -> list[DailyBar]:
     last_error: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
-            return list(provider.fetch_daily_bars(symbol, start, end, adjust=adjust))
+            bars = list(provider.fetch_daily_bars(symbol, start, end, adjust=adjust))
+            sleep_after_request(request_sleep_seconds, sleep)
+            return bars
         except Exception as exc:  # noqa: BLE001 - provider adapters expose mixed exceptions.
             last_error = exc
+            sleep_after_request(request_sleep_seconds, sleep)
             if attempt >= retries:
                 break
             sleep(retry_sleep_seconds * attempt)
@@ -434,6 +440,8 @@ def validate_config(config: MarketScanConfig) -> None:
         raise ValueError("retries must be a positive integer")
     if config.retry_sleep_seconds < 0:
         raise ValueError("retry_sleep_seconds must be non-negative")
+    if config.request_sleep_seconds < 0:
+        raise ValueError("request_sleep_seconds must be non-negative")
 
 
 def format_optional_pct(value: float | None) -> str:
@@ -450,3 +458,8 @@ def escape_table_text(value: str) -> str:
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def sleep_after_request(seconds: float, sleep: Callable[[float], None]) -> None:
+    if seconds > 0:
+        sleep(seconds)

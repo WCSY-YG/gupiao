@@ -1,6 +1,6 @@
 # 项目任务清单
 
-更新时间：2026-06-10 11:29 CST
+更新时间：2026-06-10 12:02 CST
 
 本文档是项目自动推进的状态源。每一轮任务开始前先读取本文件；每完成一个任务，必须更新状态并本地提交。GitHub 推送若失败，记录 `push_pending` 后继续推进。
 
@@ -70,3 +70,4 @@
 - 2026-06-10 11:20 CST：完成可恢复全 A 股市场扫描入口，新增 `scan market`、SQLite 缓存复用、逐股失败不中断、轻量公开汇总和 5 项扫描测试；已通过 `compileall`、CLI help、`unittest` 50 项；已安装 AKShare 并完成 3 只股票真实 smoke test，生成 `reports/summaries/smoke_market_scan.md`。
 - 2026-06-10 11:24 CST：本轮 Phase 6 提交 `1942e2a feat: add recoverable market scan workflow` 已成功推送到 GitHub `main`；下一项仍为 P6-02 完整全 A 股扫描。
 - 2026-06-10 11:29 CST：启动 P6-02 完整全 A 股扫描，使用 `data/cache/market_scan.sqlite` 和 `reports/generated/market_scan/latest/` 作为本地缓存/完整结果路径，只提交 `reports/summaries/latest_market_scan.md`。
+- 2026-06-10 12:02 CST：首轮全量扫描在 708 条结果、147 条远端断连失败后暂停，已保留 SQLite 成功缓存；新增 `--request-sleep` 请求节流参数并通过 51 项测试，准备从缓存恢复扫描。

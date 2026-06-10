@@ -160,3 +160,4 @@ class AkshareProviderTest(TestCase):
         self.assertEqual(args.public_summary, "reports/summaries/latest_market_scan.md")
         self.assertEqual(args.top, 30)
         self.assertEqual(args.retries, 3)
+        self.assertEqual(args.request_sleep, 0.0)
