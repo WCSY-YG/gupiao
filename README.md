@@ -4,20 +4,88 @@ A 股选股、买卖点分析、竞价数据增强与量化研究辅助工具。
 
 `gupiao` 是一个面向 A 股的量化研究辅助项目，用来串起数据接入、指标计算、策略选股、买卖点解释、回测验证、中文报告和静态 Dashboard。项目只用于研究和决策支持，不构成投资建议，也不默认接入真实交易。
 
-## 当前能力
+## 功能总览
 
-- A 股股票列表和日线行情接入，MVP 数据源为 AKShare。
-- 本地 SQLite 存储，支持股票基础信息和日线数据写入/查询。
-- 数据质量检查，覆盖缺失、重复、时间顺序、异常 OHLC、停牌提示等。
+### 数据接入与本地缓存
+
+- A 股股票列表接入：通过 AKShare 获取股票代码、名称、市场和交易所信息。
+- 单只股票日线接入：支持 `raw`、`qfq`、`hfq` 复权参数，输出 JSON Lines。
+- 当日盘前竞价分钟数据接入：通过 AKShare 获取最近交易日 `09:15:00` 至 `09:25:00` 的盘前分钟数据。
+- 本地日 K 缓存导入：支持 `cache/daily_k/market_data_cache/market_YYYY-MM-DD.csv` 导入 SQLite。
+- 本地集合竞价缓存导入：支持 `cache/jingjia/*.rar` 流式解析，生成每日每股一条 `auction_profiles` 画像。
+- SQLite 本地存储：支持 `instruments`、`bars_daily`、`auction_profiles` 建表、批量写入、增量覆盖和按日期查询。
+- 可恢复数据作业：日 K 扫描和竞价导入都可以复用已写入缓存，避免重复拉取或重复解析。
+
+### 数据质量与特征工程
+
+- 股票基础信息校验：检查缺失字段、重复代码等问题。
+- 日线数据校验：检查重复记录、时间顺序、OHLC 合法性、负成交量/成交额/换手率、零成交量停牌提示。
 - 纯 Python 技术指标：SMA、EMA、MACD、KDJ、RSI、BOLL、ATR、OBV。
-- MVP 选股策略：均线多头 + 放量突破。
-- 竞价数据增强：支持 AKShare 盘前分钟数据、竞价画像、竞价强度评分，并可参与选股和回测。
-- 买卖点解释：入场、加仓、减仓、止损、止盈、信号失效条件。
-- A 股约束回测：T+1、涨跌停、停牌、手续费、滑点。
-- 中文 Markdown 绩效报告和自包含静态 HTML Dashboard。
-- 多因子评分、轻量 ML 评分和组合权重研究脚手架。
-- 可恢复的全 A 股市场扫描，批量拉取日线、回测并生成轻量汇总。
-- GitHub 高星项目调研，并蒸馏为项目内可复用 skills。
+- 竞价画像特征：竞价缺口、竞价量比、竞价区间波动、委买委卖不平衡、0-100 竞价强度分。
+- 竞价研究样本：可构建竞价特征与未来收益样本，用于样本外验证和轻量模型实验。
+
+### 选股与买卖点
+
+- MVP 选股策略：均线多头 + 放量突破，输出候选股、候选分、命中原因和关键指标。
+- 竞价增强选股：策略可接收同日 `AuctionProfile`，用竞价强度、缺口、量比和委买委卖不平衡辅助排序或过滤。
+- 竞价策略结论：最近验证显示 `min_auction_score=60` 硬过滤暂未稳定改善收益，当前建议优先软排序/解释，不默认强过滤。
+- 买卖点解释：输出入场价、加仓价、减仓价、止损价、止盈价、信号失效条件、风险收益比和解释原因。
+- CLI 选股/信号命令：支持从本地 JSONL 日线样本运行选股和买卖点解释。
+
+### 回测与 A 股交易约束
+
+- 单标的策略回测：复用选股策略和买卖点计划，输出收益、最大回撤、胜率、权益曲线和交易明细。
+- 交易成本：支持初始资金、手续费、滑点、最长持有周期等参数。
+- A 股约束：默认启用 T+1、涨停不可买、跌停不可卖、零成交量停牌不可成交。
+- 历史竞价回测：可按 `symbol + trade_date` 注入 `AuctionProfile`，比较纯 K 线策略和竞价增强策略。
+- 竞价增强对比实验：`research auction-compare` 可批量对比 baseline 与 auction-enhanced 两版回测，并生成小型汇总。
+
+### 报告、Dashboard 与全市场扫描
+
+- 中文 Markdown 绩效报告：覆盖候选股、买卖点计划、回测指标、交易明细、假设和风险提示。
+- 静态 HTML Dashboard：自包含页面，包含 KPI、候选、买卖点、权益曲线 SVG、交易明细和风险提示。
+- 可恢复全 A 股市场扫描：`scan market` 支持全市场逐股拉取/复用日 K、策略筛选、信号生成、回测和失败不中断。
+- 扫描轻量汇总：完整逐股结果留在 `reports/generated/`，可提交小型 Markdown 汇总到 `reports/summaries/`。
+- 竞价增强扫描：全市场扫描可通过 `--auction-provider local_jingjia` 使用本地竞价画像。
+
+### 研究工具与策略迭代
+
+- 多因子评分：支持价值、质量、成长、动量、波动率、流动性等因子的归一化和加权排名。
+- 轻量 ML 基线：支持训练/验证切分、线性基线预测和样本外评分。
+- 组合权重研究：支持按预测评分选 Top N，并做权重上限控制。
+- 竞价增强近期验证：已用 `2026-01-01` 至 `2026-05-29` 日 K 和 `2026-05` 本地竞价画像完成一次 baseline vs auction 对比。
+- 后续滚动验证：任务清单已规划 P6-06，对不同月份和竞价参数做滚动对比，形成更稳健的参数建议。
+
+### 项目规划、skills 与自动化
+
+- GitHub 高星项目调研：已参考 AKShare、myhhub/stock、TA-Lib Python、backtesting.py、QuantStats 等项目。
+- 项目内 skills：沉淀数据接入、竞价数据、选股策略、买卖点、回测验证、绩效报告等可复用工作流。
+- 自动推进任务清单：`docs/PROJECT_TASKS.md` 记录 `pending` / `in_progress` / `done` / `blocked` 状态。
+- 项目记忆：`docs/PROJECT_MEMORY.md` 记录关键决策、数据导入结果、验证结论和后续路线。
+- GitHub 同步策略：代码、文档和小型汇总提交；原始行情、SQLite、逐股结果和大文件不提交。
+
+### CLI 命令总览
+
+| 命令 | 功能 | 主要产物 |
+|---|---|---|
+| `data instruments` | 获取 A 股股票列表 | JSON Lines |
+| `data daily` | 获取单只股票日线 | JSON Lines |
+| `data pre-market` | 获取最近交易日盘前竞价分钟数据 | JSON Lines |
+| `data update-daily` | 拉取日线并写入 SQLite | `bars_daily` |
+| `data import-daily-cache` | 导入本地全市场日 K CSV | `bars_daily` |
+| `data import-auction-cache` | 导入本地集合竞价 RAR | `auction_profiles` |
+| `screen breakout` | 运行 MVP 选股策略 | JSON |
+| `signal breakout` | 生成买卖点解释 | JSON |
+| `backtest breakout` | 运行单标的回测 | JSON |
+| `report breakout` | 生成中文 Markdown 报告 | Markdown |
+| `scan market` | 运行可恢复全市场扫描 | JSONL + Markdown 汇总 |
+| `research auction-compare` | 对比纯 K 线和竞价增强策略 | JSONL + Markdown 汇总 |
+
+### 目前不做的事情
+
+- 不提供真实交易、券商下单或自动交易。
+- 不把候选股、买卖点、回测收益解释为投资建议。
+- 不提交原始行情、SQLite、RAR、逐股 JSONL/CSV 或大体积生成目录。
 
 ## 安装
 
