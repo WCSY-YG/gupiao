@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 09:56 CST（Asia/Shanghai）
+更新时间：2026-06-10 10:00 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -132,6 +132,13 @@
 - 暂不引入前端构建链；后续如需交互式 Dashboard，再接 FastAPI/Web UI。
 - 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 39 项。
 
+已经完成多因子研究工具：
+
+- `rank_factors` 支持价值、质量、成长、动量、波动率、流动性等因子的归一化和加权排名。
+- `volatility` 默认越低越好，其余默认越高越好。
+- 输出 `FactorScore`，包含综合得分、分项得分和原始因子。
+- 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 41 项。
+
 ## 同步状态
 
 - `push_pending`：GitHub 推送凭据暂不可用，按用户最新指令先继续推进任务。
@@ -179,10 +186,10 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P5-01`：扩展多因子研究。
-2. `P5-02`：探索 ML 评分与组合优化。
-3. 后续：组合优化、模拟交易风控、更多数据源适配。
-4. 等 GitHub 凭据恢复后同步所有 `push_pending` 提交。
+1. `P5-02`：探索 ML 评分与组合优化。
+2. 后续：组合优化、模拟交易风控、更多数据源适配。
+3. 等 GitHub 凭据恢复后同步所有 `push_pending` 提交。
+4. 继续补充真实数据样例、策略实验和报告模板。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
 
 每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交本地 Git。GitHub 推送恢复后再同步 `push_pending` 提交。
