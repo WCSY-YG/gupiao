@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 09:43 CST（Asia/Shanghai）
+更新时间：2026-06-10 09:47 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -111,6 +111,13 @@
 - 暴露 `can_enter`、`can_exit`、`is_limit_up`、`is_limit_down`、`is_suspended` 便于测试和后续报告解释。
 - 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 33 项。
 
+已经完成中文绩效报告：
+
+- `build_markdown_report` 输出中文 Markdown，覆盖候选股、信号解释、回测指标、交易明细、风险提示和回测假设。
+- `write_markdown_report` 支持报告落盘。
+- QuantStats HTML 报告仍作为后续增强，不阻塞当前 MVP。
+- 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 36 项。
+
 ## 同步状态
 
 - `push_pending`：GitHub 推送凭据暂不可用，按用户最新指令先继续推进任务。
@@ -158,9 +165,9 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P3-03`：生成中文绩效报告。
-2. `P4-01`：提供 CLI 任务入口。
-3. `P4-02`：搭建 Web Dashboard 初版。
+1. `P4-01`：提供 CLI 任务入口。
+2. `P4-02`：搭建 Web Dashboard 初版。
+3. `P5-01`：扩展多因子研究。
 4. `P5-01`：扩展多因子研究。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
 
