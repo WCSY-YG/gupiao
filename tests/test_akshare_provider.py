@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from unittest import TestCase
 
-from gupiao.cli import build_parser, parse_cli_date, positive_int, to_jsonable
+from gupiao.cli import build_parser, parse_cli_date, positive_float, positive_int, to_jsonable
 from gupiao.data.akshare_provider import (
     AkshareProvider,
     infer_exchange,
@@ -127,6 +127,7 @@ class AkshareProviderTest(TestCase):
     def test_cli_helpers_and_json_conversion(self) -> None:
         self.assertEqual(parse_cli_date("2026-06-10"), date(2026, 6, 10))
         self.assertEqual(positive_int("5"), 5)
+        self.assertEqual(positive_float("0.5"), 0.5)
         self.assertEqual(to_jsonable({"date": date(2026, 6, 10)}), {"date": "2026-06-10"})
 
     def test_cli_data_arguments_parse_without_fetching(self) -> None:
@@ -161,3 +162,4 @@ class AkshareProviderTest(TestCase):
         self.assertEqual(args.top, 30)
         self.assertEqual(args.retries, 3)
         self.assertEqual(args.request_sleep, 0.0)
+        self.assertEqual(args.request_timeout, 60.0)

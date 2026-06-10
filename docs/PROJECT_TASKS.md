@@ -1,6 +1,6 @@
 # 项目任务清单
 
-更新时间：2026-06-10 12:02 CST
+更新时间：2026-06-10 12:56 CST
 
 本文档是项目自动推进的状态源。每一轮任务开始前先读取本文件；每完成一个任务，必须更新状态并本地提交。GitHub 推送若失败，记录 `push_pending` 后继续推进。
 
@@ -16,7 +16,7 @@
 ## 当前指针
 
 - 当前阶段：Phase 6。
-- 下一项任务：P6-02 正在运行完整全 A 股扫描。
+- 下一项任务：P6-02 正在运行完整全 A 股扫描，已加入单只请求超时保护后继续从缓存恢复。
 - 推进规则：从上到下选择第一个 `pending` 且依赖已完成的任务。
 - GitHub 更新规则：每完成一个任务，更新本清单和相关项目记忆，执行一次本地 commit；远端推送失败时记录 `push_pending`，不阻塞后续任务。
 
@@ -71,3 +71,4 @@
 - 2026-06-10 11:24 CST：本轮 Phase 6 提交 `1942e2a feat: add recoverable market scan workflow` 已成功推送到 GitHub `main`；下一项仍为 P6-02 完整全 A 股扫描。
 - 2026-06-10 11:29 CST：启动 P6-02 完整全 A 股扫描，使用 `data/cache/market_scan.sqlite` 和 `reports/generated/market_scan/latest/` 作为本地缓存/完整结果路径，只提交 `reports/summaries/latest_market_scan.md`。
 - 2026-06-10 12:02 CST：首轮全量扫描在 708 条结果、147 条远端断连失败后暂停，已保留 SQLite 成功缓存；新增 `--request-sleep` 请求节流参数并通过 51 项测试，准备从缓存恢复扫描。
+- 2026-06-10 12:56 CST：后续恢复扫描曾因单只 AKShare 请求长时间挂起暂停；新增 `--request-timeout` 单次请求超时参数，推荐用 `--request-sleep 2.0 --retry-sleep 3 --request-timeout 60` 从 SQLite 缓存继续推进，GitHub 推送仍不阻塞任务。

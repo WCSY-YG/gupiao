@@ -172,13 +172,15 @@ PYTHONPATH=src python -m gupiao.cli scan market \
   --output reports/generated/market_scan/latest \
   --public-summary reports/summaries/latest_market_scan.md \
   --top 30 \
-  --request-sleep 0.3
+  --request-sleep 2.0 \
+  --retry-sleep 3 \
+  --request-timeout 60
 ```
 
 先做 3 只股票 smoke test：
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli scan market --limit 3 --retry-sleep 0 --request-sleep 0.1 --public-summary reports/summaries/smoke_market_scan.md
+PYTHONPATH=src python -m gupiao.cli scan market --limit 3 --retry-sleep 0 --request-sleep 0.1 --request-timeout 30 --public-summary reports/summaries/smoke_market_scan.md
 ```
 
 产物规则：
@@ -187,6 +189,8 @@ PYTHONPATH=src python -m gupiao.cli scan market --limit 3 --retry-sleep 0 --requ
 - `reports/generated/market_scan/latest/`：本地完整逐股结果和失败明细，不提交。
 - `reports/summaries/latest_market_scan.md`：轻量公开汇总，可提交到 GitHub。
 - `--request-sleep`：每次真实行情请求后的节流秒数，缓存命中不会等待；接口断连较多时可调大。
+- `--retry-sleep`：失败重试之间的线性退避基准秒数。
+- `--request-timeout`：单只股票单次行情请求超时秒数，防止 AKShare 或远端连接长时间挂起。
 
 ## 推荐工作流
 

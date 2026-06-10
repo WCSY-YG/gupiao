@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -38,6 +39,18 @@ class FakeMarketProvider:
         self.fetch_calls.append(symbol)
         if symbol in self.failures:
             raise RuntimeError("provider unavailable")
+        return self.bars_by_symbol.get(symbol, [])
+
+
+class SlowMarketProvider(FakeMarketProvider):
+    def __init__(self, bars_by_symbol: dict[str, list[DailyBar]], slow_symbols: set[str]):
+        super().__init__(bars_by_symbol)
+        self.slow_symbols = slow_symbols
+
+    def fetch_daily_bars(self, symbol, start, end, *, adjust="hfq"):
+        self.fetch_calls.append(symbol)
+        if symbol in self.slow_symbols:
+            time.sleep(1.0)
         return self.bars_by_symbol.get(symbol, [])
 
 
@@ -136,6 +149,35 @@ class MarketScanTest(TestCase):
             )
 
             self.assertEqual(sleeps, [0.25])
+
+    def test_market_scan_records_request_timeout_and_continues(self) -> None:
+        with TemporaryDirectory() as directory:
+            provider = SlowMarketProvider({"000002": breakout_bars()}, slow_symbols={"000001"})
+            config = MarketScanConfig(
+                start=date(2026, 6, 1),
+                end=date(2026, 6, 20),
+                db_path=f"{directory}/scan.sqlite",
+                output_dir=f"{directory}/generated",
+                public_summary_path=f"{directory}/summary.md",
+                limit=2,
+                retries=1,
+                retry_sleep_seconds=0,
+                request_timeout_seconds=0.01,
+            )
+
+            result = run_market_scan(
+                provider,
+                config=config,
+                strategy=small_strategy(),
+                backtest_config=BacktestConfig(atr_window=3, max_holding_bars=2),
+                sleep=lambda _: None,
+            )
+
+            self.assertEqual(result.processed, 2)
+            self.assertEqual(result.succeeded, 1)
+            self.assertEqual(result.failed, 1)
+            self.assertIn("TimeoutError", result.results[0].error or "")
+            self.assertEqual(result.results[1].symbol, "000002")
 
     def test_ranked_candidates_sort_by_score_then_return(self) -> None:
         rows = [

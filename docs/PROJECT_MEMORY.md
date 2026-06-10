@@ -206,12 +206,18 @@ MVP 优先参考项目：
 当前下一项任务：
 
 1. P6-02：正在运行完整全 A 股扫描并提交 `reports/summaries/latest_market_scan.md`。
-2. 完整扫描命令使用 `PYTHONPATH=src python -m gupiao.cli scan market --start 2023-06-10 --end 2026-06-10 --adjust hfq --db data/cache/market_scan.sqlite --output reports/generated/market_scan/latest --public-summary reports/summaries/latest_market_scan.md --top 30 --request-sleep 0.3`。
+2. 完整扫描命令使用 `PYTHONPATH=src python -m gupiao.cli scan market --start 2023-06-10 --end 2026-06-10 --adjust hfq --db data/cache/market_scan.sqlite --output reports/generated/market_scan/latest --public-summary reports/summaries/latest_market_scan.md --top 30 --request-sleep 2.0 --retry-sleep 3 --request-timeout 60`。
 3. 原始行情、SQLite、逐股完整结果继续留在 `data/cache/` 和 `reports/generated/`，不提交 GitHub。
-4. 若全量扫描耗时过长或中断，重复运行同一命令即可复用 SQLite 缓存继续推进；`--request-sleep` 用于降低 AKShare 远端断连/限流。
+4. 若全量扫描耗时过长或中断，重复运行同一命令即可复用 SQLite 缓存继续推进；`--request-sleep` 用于降低 AKShare 远端断连/限流，`--request-timeout` 用于跳过长时间挂起的单只请求。
 5. 后续可继续扩展策略实验、报告模板、组合优化和模拟交易风控。
 
 每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交本地 Git。GitHub 推送恢复后再同步 `push_pending` 提交。
+
+## 2026-06-10 12:56 CST 运行记忆
+
+- P6-02 完整扫描已多次从 `data/cache/market_scan.sqlite` 恢复，缓存保留成功行情；`reports/generated/market_scan/latest/` 继续作为本地完整结果目录。
+- 前序全量尝试主要失败模式为 AKShare 远端断连和单只请求长时间挂起；本轮新增 `scan market --request-timeout`，默认 60 秒，配合 3 次重试和请求节流继续推进。
+- 当前 GitHub 同步策略不变：代码、文档和小型 Markdown 汇总可本地提交；原始行情、SQLite、逐股 JSONL/CSV 和完整生成目录不提交；推送失败只记录 `push_pending`，不停止任务。
 
 ## 注意事项
 

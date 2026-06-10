@@ -109,6 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan_market.add_argument("--retries", type=positive_int, default=3)
     scan_market.add_argument("--retry-sleep", type=non_negative_float, default=1.0)
     scan_market.add_argument("--request-sleep", type=non_negative_float, default=0.0)
+    scan_market.add_argument("--request-timeout", type=positive_float, default=60.0)
     add_strategy_args(scan_market)
     add_backtest_args(scan_market)
     scan_market.set_defaults(handler=handle_scan_market)
@@ -240,6 +241,7 @@ def handle_scan_market(args: argparse.Namespace) -> None:
         retries=args.retries,
         retry_sleep_seconds=args.retry_sleep,
         request_sleep_seconds=args.request_sleep,
+        request_timeout_seconds=args.request_timeout,
     )
     result = run_market_scan(
         AkshareProvider(),
@@ -393,6 +395,13 @@ def non_negative_float(value: str) -> float:
     parsed = float(value)
     if parsed < 0:
         raise argparse.ArgumentTypeError("expected a non-negative float")
+    return parsed
+
+
+def positive_float(value: str) -> float:
+    parsed = float(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("expected a positive float")
     return parsed
 
 

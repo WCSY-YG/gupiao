@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import signal
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
+from threading import current_thread, main_thread
 from typing import Any
 
 from gupiao.backtest import BacktestConfig, run_breakout_backtest
@@ -40,6 +42,7 @@ class MarketScanConfig:
     retries: int = 3
     retry_sleep_seconds: float = 1.0
     request_sleep_seconds: float = 0.0
+    request_timeout_seconds: float | None = 60.0
 
 
 @dataclass(frozen=True)
@@ -169,6 +172,7 @@ def scan_instrument(
                 retries=config.retries,
                 retry_sleep_seconds=config.retry_sleep_seconds,
                 request_sleep_seconds=config.request_sleep_seconds,
+                request_timeout_seconds=config.request_timeout_seconds,
                 sleep=sleep,
             )
             data_source = "fetched"
@@ -250,12 +254,20 @@ def fetch_daily_bars_with_retries(
     retries: int,
     retry_sleep_seconds: float,
     request_sleep_seconds: float,
+    request_timeout_seconds: float | None,
     sleep: Callable[[float], None],
 ) -> list[DailyBar]:
     last_error: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
-            bars = list(provider.fetch_daily_bars(symbol, start, end, adjust=adjust))
+            bars = fetch_daily_bars_once(
+                provider,
+                symbol,
+                start,
+                end,
+                adjust=adjust,
+                request_timeout_seconds=request_timeout_seconds,
+            )
             sleep_after_request(request_sleep_seconds, sleep)
             return bars
         except Exception as exc:  # noqa: BLE001 - provider adapters expose mixed exceptions.
@@ -267,6 +279,50 @@ def fetch_daily_bars_with_retries(
     if last_error is not None:
         raise last_error
     return []
+
+
+def fetch_daily_bars_once(
+    provider: DataProvider,
+    symbol: str,
+    start: date,
+    end: date,
+    *,
+    adjust: str,
+    request_timeout_seconds: float | None,
+) -> list[DailyBar]:
+    fetch = lambda: list(provider.fetch_daily_bars(symbol, start, end, adjust=adjust))
+    if request_timeout_seconds is None:
+        return fetch()
+    return call_with_timeout(
+        fetch,
+        timeout_seconds=request_timeout_seconds,
+        label=f"daily bars request for {symbol}",
+    )
+
+
+def call_with_timeout(
+    action: Callable[[], list[DailyBar]],
+    *,
+    timeout_seconds: float,
+    label: str,
+) -> list[DailyBar]:
+    if current_thread() is not main_thread() or not hasattr(signal, "setitimer"):
+        return action()
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+
+    def raise_timeout(_signum: int, _frame: Any) -> None:
+        raise TimeoutError(f"{label} timed out after {timeout_seconds:g} seconds")
+
+    signal.signal(signal.SIGALRM, raise_timeout)
+    previous_timer = signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+    try:
+        return action()
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if previous_timer[0] > 0 or previous_timer[1] > 0:
+            signal.setitimer(signal.ITIMER_REAL, *previous_timer)
 
 
 def summarize_result(
@@ -313,6 +369,10 @@ def build_public_summary(scan: MarketScanResult) -> str:
         f"- 回测区间：{scan.config.start.isoformat()} 至 {scan.config.end.isoformat()}",
         f"- 复权方式：`{scan.config.adjust}`",
         f"- 股票范围：{'前 ' + str(scan.config.limit) + ' 只' if scan.config.limit else '全 A 股'}",
+        f"- 重试次数：{scan.config.retries}",
+        f"- 请求节流：{scan.config.request_sleep_seconds:g} 秒",
+        f"- 重试退避：{scan.config.retry_sleep_seconds:g} 秒",
+        f"- 单次请求超时：{format_timeout(scan.config.request_timeout_seconds)}",
         f"- 本地完整结果：`{scan.result_path}`",
         f"- 本地失败明细：`{scan.failure_path}`",
         "",
@@ -442,6 +502,8 @@ def validate_config(config: MarketScanConfig) -> None:
         raise ValueError("retry_sleep_seconds must be non-negative")
     if config.request_sleep_seconds < 0:
         raise ValueError("request_sleep_seconds must be non-negative")
+    if config.request_timeout_seconds is not None and config.request_timeout_seconds <= 0:
+        raise ValueError("request_timeout_seconds must be positive")
 
 
 def format_optional_pct(value: float | None) -> str:
@@ -450,6 +512,10 @@ def format_optional_pct(value: float | None) -> str:
 
 def format_optional_float(value: float | None) -> str:
     return f"{value:.2f}" if value is not None else "-"
+
+
+def format_timeout(value: float | None) -> str:
+    return "禁用" if value is None else f"{value:g} 秒"
 
 
 def escape_table_text(value: str) -> str:
