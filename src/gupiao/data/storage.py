@@ -8,7 +8,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from gupiao.compat import UTC
-from gupiao.data.schema import AuctionProfile, DailyBar, Instrument
+from gupiao.data.schema import AuctionMinuteBar, AuctionProfile, DailyBar, Instrument
 
 
 class SQLiteStore:
@@ -70,6 +70,23 @@ class SQLiteStore:
                     fetched_at TEXT,
                     updated_at TEXT NOT NULL,
                     PRIMARY KEY (symbol, trade_date, provider)
+                );
+
+                CREATE TABLE IF NOT EXISTS auction_minutes (
+                    symbol TEXT NOT NULL,
+                    trade_date TEXT NOT NULL,
+                    trade_time TEXT NOT NULL,
+                    open REAL NOT NULL,
+                    close REAL NOT NULL,
+                    high REAL NOT NULL,
+                    low REAL NOT NULL,
+                    volume REAL NOT NULL,
+                    amount REAL,
+                    latest_price REAL,
+                    provider TEXT NOT NULL,
+                    fetched_at TEXT,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (symbol, trade_time, provider)
                 );
                 """
             )
@@ -233,6 +250,15 @@ class SQLiteStore:
                 FROM auction_profiles
                 """
             ).fetchone()
+            auction_minutes = connection.execute(
+                """
+                SELECT COUNT(*) AS rows,
+                       COUNT(DISTINCT symbol) AS symbols,
+                       MIN(trade_date) AS start,
+                       MAX(trade_date) AS end
+                FROM auction_minutes
+                """
+            ).fetchone()
             adjusts = [
                 row["adjust"]
                 for row in connection.execute(
@@ -243,6 +269,12 @@ class SQLiteStore:
                 row["provider"]
                 for row in connection.execute(
                     "SELECT DISTINCT provider FROM auction_profiles ORDER BY provider"
+                ).fetchall()
+            ]
+            auction_minute_providers = [
+                row["provider"]
+                for row in connection.execute(
+                    "SELECT DISTINCT provider FROM auction_minutes ORDER BY provider"
                 ).fetchall()
             ]
         return {
@@ -261,6 +293,13 @@ class SQLiteStore:
                 "start": auction["start"],
                 "end": auction["end"],
                 "providers": auction_providers,
+            },
+            "auction_minutes": {
+                "rows": auction_minutes["rows"],
+                "symbols": auction_minutes["symbols"],
+                "start": auction_minutes["start"],
+                "end": auction_minutes["end"],
+                "providers": auction_minute_providers,
             },
         }
 
@@ -418,6 +457,98 @@ class SQLiteStore:
                 rows,
             )
         return len(rows)
+
+    def upsert_auction_minutes(self, minutes: Iterable[AuctionMinuteBar]) -> int:
+        rows = [
+            (
+                minute.symbol,
+                date_to_text(minute.trade_date),
+                datetime_to_text(minute.trade_time),
+                minute.open,
+                minute.close,
+                minute.high,
+                minute.low,
+                minute.volume,
+                minute.amount,
+                minute.latest_price,
+                minute.provider or "",
+                datetime_to_text(minute.fetched_at),
+                now_text(),
+            )
+            for minute in minutes
+        ]
+        if not rows:
+            return 0
+
+        self.init_schema()
+        with self.connect() as connection:
+            connection.executemany(
+                """
+                INSERT INTO auction_minutes (
+                    symbol, trade_date, trade_time, open, close, high, low,
+                    volume, amount, latest_price, provider, fetched_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(symbol, trade_time, provider) DO UPDATE SET
+                    open = excluded.open,
+                    close = excluded.close,
+                    high = excluded.high,
+                    low = excluded.low,
+                    volume = excluded.volume,
+                    amount = excluded.amount,
+                    latest_price = excluded.latest_price,
+                    fetched_at = excluded.fetched_at,
+                    updated_at = excluded.updated_at
+                """,
+                rows,
+            )
+        return len(rows)
+
+    def get_auction_minutes(
+        self,
+        symbol: str,
+        *,
+        start: date | None = None,
+        end: date | None = None,
+        provider: str | None = None,
+    ) -> list[AuctionMinuteBar]:
+        self.init_schema()
+        sql = """
+            SELECT symbol, trade_time, open, close, high, low, volume, amount,
+                   latest_price, provider, fetched_at
+            FROM auction_minutes
+            WHERE symbol = ?
+        """
+        parameters: list[str] = [symbol]
+        if start is not None:
+            sql += " AND trade_date >= ?"
+            parameters.append(date_to_text(start) or "")
+        if end is not None:
+            sql += " AND trade_date <= ?"
+            parameters.append(date_to_text(end) or "")
+        if provider is not None:
+            sql += " AND provider = ?"
+            parameters.append(provider)
+        sql += " ORDER BY trade_time"
+
+        with self.connect() as connection:
+            rows = connection.execute(sql, parameters).fetchall()
+        return [
+            AuctionMinuteBar(
+                symbol=row["symbol"],
+                trade_time=text_to_datetime(row["trade_time"]) or datetime.min,
+                open=row["open"],
+                close=row["close"],
+                high=row["high"],
+                low=row["low"],
+                volume=row["volume"],
+                amount=row["amount"],
+                latest_price=row["latest_price"],
+                provider=row["provider"] or None,
+                fetched_at=text_to_datetime(row["fetched_at"]),
+            )
+            for row in rows
+        ]
 
     def get_auction_profiles(
         self,

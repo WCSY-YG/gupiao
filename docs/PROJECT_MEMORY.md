@@ -330,6 +330,17 @@ MVP 优先参考项目：
 - 已补测试：`tests/test_morning_workflow.py` 断言复权日 K + 竞价价时止损使用百分比兜底并输出风险提示。
 - 已验证：`conda run -n agent env PYTHONPATH=src python -m compileall -q src tests`、`conda run -n agent env PYTHONPATH=src python -m unittest discover -s tests`（99 项通过）、`conda run -n agent env PYTHONPATH=src python -m gupiao.cli --version`（输出 `0.2.0`）；真实缓存 `screen morning` smoke 中 `000027` 计划已输出参考买入 7.98、止损 7.7007、减仓 8.2593、止盈 8.399，价格口径恢复合理；`research auction-rolling` 小型 smoke 写入 `/tmp/gupiao_goal_audit/auction_rolling.md`，1 个窗口、4 个参数组合。
 
+## 2026-06-10 22:23 CST 早盘竞价实时监控记忆
+
+- 用户追问当前代码是否能监控早盘竞价，并把当日竞价数据与前一交易日上下文写入本地，避免每天重新缓存；本轮补齐这个缺口。
+- 新增 `src/gupiao/data/auction_monitor.py`，提供 `AuctionMonitorConfig`、`AuctionMonitorResult` 和 `monitor_live_auction`；默认 provider 标记为 `akshare_live`，默认日 K 口径为 `raw`，避免实时竞价未复权价格与复权日 K 混用。
+- 新增 SQLite `auction_minutes` 表保存当日原始竞价分钟，同时继续写 `auction_profiles` 画像；`data_status` 现在会同时返回竞价画像和竞价分钟的行数、股票数、日期范围和 provider。
+- 监控时间边界：交易日 D 只写 D 日 `09:15` 至 `09:25` 竞价分钟和画像；日 K 上下文只取 `trade_date < D` 的最近若干天，不把 D 日收盘、高低点或成交量作为早盘决策输入。
+- 增量逻辑：已有 raw 日 K 上下文会复用，缺口才会调用 AKShare；`--no-cache-daily-bars` 只是不写库，仍可临时获取上下文用于竞价缺口和量比评分。
+- 新增 CLI：`data monitor-auction --db data/cache/market_scan.sqlite --trade-date YYYY-MM-DD --auction-provider akshare_live --daily-adjust raw`，支持 `--symbol` 小范围验证、`--limit` 控制批量范围、重试和请求间隔；返回摘要和失败样例，完整结果落 SQLite。
+- 新增 Web action `data_monitor_auction` 和专业模式按钮“监控并写入竞价”；普通模式继续保持早盘选股/买卖计划为主，不增加复杂参数。
+- 当天早盘监控完成后，选股直接用 `screen morning --trade-date D --auction-provider akshare_live --adjust raw`；历史回测和本地 RAR 导入竞价继续用 `local_jingjia`。
+
 ## 注意事项
 
 - 当前项目定位为研究与辅助分析工具，不默认接入真实交易。

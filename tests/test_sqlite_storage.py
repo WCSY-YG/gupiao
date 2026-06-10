@@ -4,7 +4,7 @@ from datetime import date, datetime
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
-from gupiao.data import AuctionProfile, DailyBar, Instrument, SQLiteStore
+from gupiao.data import AuctionMinuteBar, AuctionProfile, DailyBar, Instrument, SQLiteStore
 
 
 class SQLiteStoreTest(TestCase):
@@ -146,3 +146,32 @@ class SQLiteStoreTest(TestCase):
                 ),
                 ["000001"],
             )
+
+    def test_auction_minute_upsert_and_query(self) -> None:
+        with TemporaryDirectory() as directory:
+            store = SQLiteStore(f"{directory}/gupiao.sqlite")
+            minute = AuctionMinuteBar(
+                symbol="000001",
+                trade_time=datetime(2026, 6, 10, 9, 25),
+                open=10.1,
+                close=10.3,
+                high=10.4,
+                low=10.1,
+                volume=1200.0,
+                amount=1236000.0,
+                latest_price=10.3,
+                provider="akshare_live",
+            )
+
+            self.assertEqual(store.upsert_auction_minutes([minute]), 1)
+
+            minutes = store.get_auction_minutes(
+                "000001",
+                start=date(2026, 6, 10),
+                end=date(2026, 6, 10),
+                provider="akshare_live",
+            )
+            self.assertEqual(minutes, [minute])
+            status = store.data_status()
+            self.assertEqual(status["auction_minutes"]["rows"], 1)
+            self.assertEqual(status["auction_minutes"]["end"], "2026-06-10")

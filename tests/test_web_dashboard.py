@@ -70,6 +70,7 @@ class WebDashboardTest(TestCase):
         self.assertIn('data-action="trade_plan"', html)
         self.assertIn('data-action="data_status"', html)
         self.assertIn('data-action="data_refresh_market_cache"', html)
+        self.assertIn('data-action="data_monitor_auction"', html)
         self.assertIn('data-action="auction_rolling"', html)
         self.assertIn('id="modeToggle"', html)
         self.assertIn('data-tab="home"', html)

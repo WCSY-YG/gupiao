@@ -11,9 +11,10 @@ A 股选股、买卖点分析、竞价数据增强与量化研究辅助工具。
 - A 股股票列表接入：通过 AKShare 获取股票代码、名称、市场和交易所信息。
 - 单只股票日线接入：支持 `raw`、`qfq`、`hfq` 复权参数，输出 JSON Lines。
 - 当日盘前竞价分钟数据接入：通过 AKShare 获取最近交易日 `09:15:00` 至 `09:25:00` 的盘前分钟数据。
+- 早盘竞价增量监控：支持在 09:25 后批量拉取当日竞价分钟，写入 `auction_minutes` 原始分钟表和 `auction_profiles` 画像表，并补充前一交易日及以前的少量 `raw` 日 K 上下文。
 - 本地日 K 缓存导入：支持 `cache/daily_k/market_data_cache/market_YYYY-MM-DD.csv` 导入 SQLite。
 - 本地集合竞价缓存导入：支持 `cache/jingjia/*.rar` 流式解析，生成每日每股一条 `auction_profiles` 画像。
-- SQLite 本地存储：支持 `instruments`、`bars_daily`、`auction_profiles` 建表、批量写入、增量覆盖和按日期查询。
+- SQLite 本地存储：支持 `instruments`、`bars_daily`、`auction_minutes`、`auction_profiles` 建表、批量写入、增量覆盖和按日期查询。
 - 可恢复数据作业：日 K 扫描和竞价导入都可以复用已写入缓存，避免重复拉取或重复解析。
 
 ### 数据质量与特征工程
@@ -78,6 +79,7 @@ A 股选股、买卖点分析、竞价数据增强与量化研究辅助工具。
 | `data instruments` | 获取 A 股股票列表 | JSON Lines |
 | `data daily` | 获取单只股票日线 | JSON Lines |
 | `data pre-market` | 获取最近交易日盘前竞价分钟数据 | JSON Lines |
+| `data monitor-auction` | 早盘批量监控并写入当日竞价与前日上下文 | `auction_minutes` + `auction_profiles` + `bars_daily` |
 | `data update-daily` | 拉取日线并写入 SQLite | `bars_daily` |
 | `data import-daily-cache` | 导入本地全市场日 K CSV | `bars_daily` |
 | `data import-auction-cache` | 导入本地集合竞价 RAR | `auction_profiles` |
@@ -181,6 +183,72 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli data pre-market 00000
 ```
 
 后续历史竞价回测应优先从本地 `cache/jingjia/` 或专门竞价表导入历史快照，再按交易日注入回测。
+
+### 早盘监控竞价并增量写入本地
+
+如果要在早上 09:25 集合竞价结束后直接做当天早盘选股，可以运行轻量监控任务。它不会重新跑全市场扫描，只做三件事：
+
+- 拉取交易日 D 当天 `09:15` 至 `09:25` 的竞价分钟，写入 `auction_minutes`。
+- 把竞价分钟压成一条 `AuctionProfile`，写入 `auction_profiles`，默认 provider 为 `akshare_live`。
+- 为计算昨收、缺口和竞价量比，补充 D 日之前最近若干天 `raw` 日 K 到 `bars_daily`；已有缓存会复用，只拉缺口上下文。
+
+先用少量股票验证：
+
+```bash
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli data monitor-auction \
+  --db data/cache/market_scan.sqlite \
+  --trade-date 2026-06-10 \
+  --symbol 000001 \
+  --symbol 600000 \
+  --daily-adjust raw \
+  --auction-provider akshare_live
+```
+
+确认接口正常后再放开到缓存里的股票列表：
+
+```bash
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli data monitor-auction \
+  --db data/cache/market_scan.sqlite \
+  --trade-date 2026-06-10 \
+  --daily-adjust raw \
+  --auction-provider akshare_live \
+  --request-sleep 0.2 \
+  --retry-sleep 1
+```
+
+常用参数：
+
+```bash
+--trade-date 2026-06-10
+--symbol 000001
+--limit 100
+--start-time 09:15:00
+--end-time 09:25:00
+--daily-lookback-days 45
+--average-volume-window 20
+--no-cache-daily-bars
+--no-cache-auction-minutes
+```
+
+时间边界：
+
+- 交易日 D 的早盘监控只把 D 日竞价分钟和竞价画像作为当天可用数据。
+- 日 K 上下文只使用 `trade_date < D` 的记录，不会把 D 日收盘、最高、最低、成交量写成早盘信号依据。
+- 如果传了 `--trade-date`，但 AKShare 返回的最近竞价日不是该日期，结果会记为 `date_mismatch`，不会写入竞价表。
+
+监控完成后，当天早盘选股可以直接使用本地 provider：
+
+```bash
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli screen morning \
+  --db data/cache/market_scan.sqlite \
+  --trade-date 2026-06-10 \
+  --horizon short_term \
+  --auction-provider akshare_live \
+  --adjust raw \
+  --top 20
+```
+
+如果你继续用历史导入的竞价缓存做回测，仍然使用 `--auction-provider local_jingjia`；如果用当天实时监控写入的数据做当日早盘决策，使用 `--auction-provider akshare_live`。
 
 ### 拉取日线并写入 SQLite
 
@@ -454,6 +522,21 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli web serve --host 127.
     "limit": 20,
     "request_sleep": 0.5,
     "dry_run": true
+  }
+}
+```
+
+```json
+{
+  "action": "data_monitor_auction",
+  "params": {
+    "db_path": "data/cache/market_scan.sqlite",
+    "trade_date": "2026-06-10",
+    "auction_provider": "akshare_live",
+    "daily_adjust": "raw",
+    "symbols": "000001,600000",
+    "limit": 2,
+    "request_sleep": 0.2
   }
 }
 ```

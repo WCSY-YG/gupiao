@@ -23,6 +23,7 @@ from gupiao.backtest import (
 )
 from gupiao.data import (
     AkshareProvider,
+    AuctionMonitorConfig,
     AuctionProfile,
     DailyBar,
     LocalAuctionCacheImportConfig,
@@ -31,6 +32,7 @@ from gupiao.data import (
     SQLiteStore,
     import_local_auction_cache,
     import_local_daily_cache,
+    monitor_live_auction,
     refresh_market_daily_cache,
     validate_daily_bars,
 )
@@ -186,6 +188,7 @@ def run_web_action(action: str, params: dict[str, Any], workspace: Path | None =
         "data_instruments": action_data_instruments,
         "data_daily": action_data_daily,
         "data_pre_market": action_data_pre_market,
+        "data_monitor_auction": action_data_monitor_auction,
         "data_update_daily": action_data_update_daily,
         "data_status": action_data_status,
         "data_refresh_market_cache": action_data_refresh_market_cache,
@@ -314,6 +317,37 @@ def action_data_pre_market(params: dict[str, Any], workspace: Path) -> dict[str,
         write_jsonl(path, minutes)
         result["saved"] = path_result(path)
     return result
+
+
+def action_data_monitor_auction(params: dict[str, Any], workspace: Path) -> dict[str, Any]:
+    db_path = resolve_path(str_param(params, "db_path", "data/cache/market_scan.sqlite"), workspace)
+    symbols = tuple(item.strip() for item in str_param(params, "symbols", "").split(",") if item.strip())
+    result = monitor_live_auction(
+        AkshareProvider(),
+        config=AuctionMonitorConfig(
+            db_path=db_path,
+            trade_date=date_param(params, "trade_date"),
+            auction_provider=str_param(params, "auction_provider", "akshare_live"),
+            daily_adjust=str_param(params, "daily_adjust", "raw"),
+            start_time=str_param(params, "start_time", "09:15:00"),
+            end_time=str_param(params, "end_time", "09:25:00"),
+            average_volume_window=int_param(params, "average_volume_window", 20) or 20,
+            daily_lookback_days=int_param(params, "daily_lookback_days", 45) or 45,
+            limit=int_param(params, "limit", None),
+            symbols=symbols,
+            retries=int_param(params, "retries", 3) or 3,
+            retry_sleep_seconds=float_param(params, "retry_sleep", 1.0) or 0.0,
+            request_sleep_seconds=float_param(params, "request_sleep", 0.0) or 0.0,
+            cache_daily_bars=bool_param(params, "cache_daily_bars", True),
+            cache_auction_minutes=bool_param(params, "cache_auction_minutes", True),
+        ),
+    )
+    return {
+        "auction_monitor": auction_monitor_summary(
+            result,
+            int_param(params, "detail_limit", 20) or 20,
+        )
+    }
 
 
 def action_data_update_daily(params: dict[str, Any], workspace: Path) -> dict[str, Any]:
@@ -994,6 +1028,31 @@ def list_limited(records: Sequence[Any] | Any, limit: int | None) -> list[Any]:
     return result
 
 
+def auction_monitor_summary(result: Any, detail_limit: int) -> dict[str, Any]:
+    failures = [
+        item
+        for item in result.results
+        if item.status in {"failed", "no_data", "date_mismatch"}
+    ][:detail_limit]
+    return {
+        "db_path": result.db_path,
+        "requested_trade_date": result.requested_trade_date,
+        "auction_provider": result.auction_provider,
+        "daily_adjust": result.daily_adjust,
+        "instrument_count": result.instrument_count,
+        "processed": result.processed,
+        "succeeded": result.succeeded,
+        "failed": result.failed,
+        "no_data": result.no_data,
+        "date_mismatch": result.date_mismatch,
+        "daily_rows_written": result.daily_rows_written,
+        "auction_minutes_written": result.auction_minutes_written,
+        "auction_profiles_written": result.auction_profiles_written,
+        "results_sample": result.results[:detail_limit],
+        "failure_sample": failures,
+    }
+
+
 def resolve_path(value: str | Path, workspace: Path) -> Path:
     path = Path(value).expanduser()
     if not path.is_absolute():
@@ -1585,6 +1644,7 @@ APP_HTML = r"""<!doctype html>
               <label>股票代码<input name="symbol" value="000001"></label>
               <label>开始时间<input name="start_time" value="09:15:00"></label>
               <label>结束时间<input name="end_time" value="09:25:03"></label>
+              <label>交易日<input name="trade_date" value=""></label>
               <label>昨收<input name="previous_close" value=""></label>
               <label>平均日量<input name="average_daily_volume" value=""></label>
               <label>竞价保存 JSONL<input name="save_path" value=""></label>
@@ -1600,6 +1660,11 @@ APP_HTML = r"""<!doctype html>
               <label>limit files<input name="limit_files" value=""></label>
               <label>limit archives<input name="limit_archives" value=""></label>
               <label>处理上限<input name="limit" value=""></label>
+              <label>实时 provider<input name="auction_provider" value="akshare_live"></label>
+              <label>日K口径<select name="daily_adjust"><option>raw</option><option>hfq</option><option>qfq</option></select></label>
+              <label>缓存日K<select name="cache_daily_bars"><option value="true">true</option><option value="false">false</option></select></label>
+              <label>缓存竞价分钟<select name="cache_auction_minutes"><option value="true">true</option><option value="false">false</option></select></label>
+              <label>明细数量<input name="detail_limit" value="20"></label>
               <label>重试<input name="retries" value="3"></label>
               <label>请求间隔<input name="request_sleep" value="0"></label>
               <label>重试间隔<input name="retry_sleep" value="1"></label>
@@ -1607,6 +1672,7 @@ APP_HTML = r"""<!doctype html>
             </div>
             <div class="row">
               <button type="button" data-action="data_pre_market" data-form="cacheForm">拉取竞价</button>
+              <button type="button" class="secondary" data-action="data_monitor_auction" data-form="cacheForm">监控并写入竞价</button>
               <button type="button" class="secondary" data-action="import_daily_cache" data-form="cacheForm">导入日K缓存</button>
               <button type="button" class="secondary" data-action="data_refresh_market_cache" data-form="cacheForm">补齐日K缺口</button>
               <button type="button" class="secondary" data-action="import_auction_cache" data-form="cacheForm">导入竞价缓存</button>
@@ -1950,6 +2016,8 @@ APP_HTML = r"""<!doctype html>
         summary.innerHTML = analysisSummary(result);
       } else if (result.refresh) {
         summary.innerHTML = refreshSummary(result.refresh);
+      } else if (result.auction_monitor) {
+        summary.innerHTML = auctionMonitorSummary(result.auction_monitor);
       } else if (result.rolling) {
         summary.innerHTML = rollingSummary(result);
       } else if (result.strategies) {
@@ -1962,14 +2030,33 @@ APP_HTML = r"""<!doctype html>
     function statusSummary(status) {
       const daily = status.daily_bars || {};
       const auction = status.auction_profiles || {};
+      const minutes = status.auction_minutes || {};
       return card("缓存状态", grid([
         ["日K最新", daily.end || "-"],
         ["日K股票", daily.symbols ?? "-"],
         ["日K行数", daily.rows ?? "-"],
         ["竞价最新", auction.end || "-"],
         ["竞价股票", auction.symbols ?? "-"],
-        ["竞价行数", auction.rows ?? "-"]
+        ["竞价行数", auction.rows ?? "-"],
+        ["分钟行数", minutes.rows ?? "-"]
       ]));
+    }
+
+    function auctionMonitorSummary(monitor) {
+      const rows = (monitor.results_sample || []).slice(0, 8).map((row) => `<tr><td>${escapeHtml(row.symbol || "")}</td><td>${escapeHtml(row.status || "")}</td><td>${escapeHtml(row.auction_trade_date || "")}</td><td>${formatPrice(row.previous_close)}</td><td>${formatPct(row.gap_pct)}</td><td>${row.strength_score ?? "-"}</td></tr>`).join("");
+      const table = rows ? `<table><thead><tr><th>代码</th><th>状态</th><th>竞价日</th><th>昨收</th><th>缺口</th><th>强度</th></tr></thead><tbody>${rows}</tbody></table>` : "";
+      return card("早盘竞价监控", grid([
+        ["交易日", monitor.requested_trade_date || "-"],
+        ["provider", monitor.auction_provider || "-"],
+        ["处理", monitor.processed ?? "-"],
+        ["成功", monitor.succeeded ?? "-"],
+        ["失败", monitor.failed ?? "-"],
+        ["无数据", monitor.no_data ?? "-"],
+        ["日期不符", monitor.date_mismatch ?? "-"],
+        ["竞价分钟写入", monitor.auction_minutes_written ?? "-"],
+        ["竞价画像写入", monitor.auction_profiles_written ?? "-"],
+        ["日K写入", monitor.daily_rows_written ?? "-"]
+      ]) + table);
     }
 
     function screenSummary(screen) {

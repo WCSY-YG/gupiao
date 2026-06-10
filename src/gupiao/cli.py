@@ -13,6 +13,7 @@ from typing import Any
 from gupiao.backtest import BacktestConfig, run_breakout_backtest, run_morning_plan_backtest
 from gupiao.data import (
     AkshareProvider,
+    AuctionMonitorConfig,
     AuctionMinuteBar,
     DailyBar,
     LocalAuctionCacheImportConfig,
@@ -21,6 +22,7 @@ from gupiao.data import (
     SQLiteStore,
     import_local_auction_cache,
     import_local_daily_cache,
+    monitor_live_auction,
     refresh_market_daily_cache,
 )
 from gupiao.reports import build_markdown_report, write_markdown_report
@@ -85,6 +87,46 @@ def build_parser() -> argparse.ArgumentParser:
     pre_market_parser.add_argument("--end-time", default="09:25:00")
     pre_market_parser.add_argument("--limit", type=positive_int, default=None)
     pre_market_parser.set_defaults(handler=handle_data_pre_market)
+
+    monitor_auction_parser = data_subparsers.add_parser(
+        "monitor-auction",
+        help="Fetch live call-auction data, write auction and previous-day context into SQLite.",
+    )
+    monitor_auction_parser.add_argument("--db", default="data/cache/market_scan.sqlite")
+    monitor_auction_parser.add_argument("--trade-date", type=parse_cli_date, default=None)
+    monitor_auction_parser.add_argument("--auction-provider", default="akshare_live")
+    monitor_auction_parser.add_argument(
+        "--daily-adjust",
+        choices=["raw", "qfq", "hfq"],
+        default="raw",
+    )
+    monitor_auction_parser.add_argument("--start-time", default="09:15:00")
+    monitor_auction_parser.add_argument("--end-time", default="09:25:00")
+    monitor_auction_parser.add_argument("--average-volume-window", type=positive_int, default=20)
+    monitor_auction_parser.add_argument("--daily-lookback-days", type=positive_int, default=45)
+    monitor_auction_parser.add_argument("--limit", type=positive_int, default=None)
+    monitor_auction_parser.add_argument("--symbol", action="append", default=[])
+    monitor_auction_parser.add_argument("--retries", type=positive_int, default=3)
+    monitor_auction_parser.add_argument("--retry-sleep", type=non_negative_float, default=1.0)
+    monitor_auction_parser.add_argument("--request-sleep", type=non_negative_float, default=0.0)
+    monitor_auction_parser.add_argument("--detail-limit", type=positive_int, default=20)
+    monitor_auction_parser.add_argument(
+        "--no-cache-daily-bars",
+        action="store_false",
+        dest="cache_daily_bars",
+        help="Do not write the previous-day daily context fetched for scoring.",
+    )
+    monitor_auction_parser.add_argument(
+        "--no-cache-auction-minutes",
+        action="store_false",
+        dest="cache_auction_minutes",
+        help="Only write auction profiles, not raw auction minute rows.",
+    )
+    monitor_auction_parser.set_defaults(
+        handler=handle_data_monitor_auction,
+        cache_daily_bars=True,
+        cache_auction_minutes=True,
+    )
 
     update_daily_parser = data_subparsers.add_parser(
         "update-daily",
@@ -383,6 +425,30 @@ def handle_data_pre_market(args: argparse.Namespace) -> None:
         ),
         limit=args.limit,
     )
+
+
+def handle_data_monitor_auction(args: argparse.Namespace) -> None:
+    result = monitor_live_auction(
+        AkshareProvider(),
+        config=AuctionMonitorConfig(
+            db_path=args.db,
+            trade_date=args.trade_date,
+            auction_provider=args.auction_provider,
+            daily_adjust=args.daily_adjust,
+            start_time=args.start_time,
+            end_time=args.end_time,
+            average_volume_window=args.average_volume_window,
+            daily_lookback_days=args.daily_lookback_days,
+            limit=args.limit,
+            symbols=tuple(args.symbol),
+            retries=args.retries,
+            retry_sleep_seconds=args.retry_sleep,
+            request_sleep_seconds=args.request_sleep,
+            cache_daily_bars=args.cache_daily_bars,
+            cache_auction_minutes=args.cache_auction_minutes,
+        ),
+    )
+    write_json_object({"auction_monitor": auction_monitor_summary(result, args.detail_limit)})
 
 
 def handle_data_update_daily(args: argparse.Namespace) -> None:
@@ -1092,6 +1158,31 @@ def shell_quote(value: str) -> str:
     if value and all(item.isalnum() or item in "._/:=-" for item in value):
         return value
     return "'" + value.replace("'", "'\"'\"'") + "'"
+
+
+def auction_monitor_summary(result: Any, detail_limit: int) -> dict[str, Any]:
+    failures = [
+        item
+        for item in result.results
+        if item.status in {"failed", "no_data", "date_mismatch"}
+    ][:detail_limit]
+    return {
+        "db_path": result.db_path,
+        "requested_trade_date": result.requested_trade_date,
+        "auction_provider": result.auction_provider,
+        "daily_adjust": result.daily_adjust,
+        "instrument_count": result.instrument_count,
+        "processed": result.processed,
+        "succeeded": result.succeeded,
+        "failed": result.failed,
+        "no_data": result.no_data,
+        "date_mismatch": result.date_mismatch,
+        "daily_rows_written": result.daily_rows_written,
+        "auction_minutes_written": result.auction_minutes_written,
+        "auction_profiles_written": result.auction_profiles_written,
+        "results_sample": result.results[:detail_limit],
+        "failure_sample": failures,
+    }
 
 
 def write_json_lines(records: Any, *, limit: int | None = None) -> None:
