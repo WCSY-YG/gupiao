@@ -15,8 +15,10 @@ from gupiao.data import (
     AkshareProvider,
     AuctionMinuteBar,
     DailyBar,
+    LocalAuctionCacheImportConfig,
     LocalDailyCacheImportConfig,
     SQLiteStore,
+    import_local_auction_cache,
     import_local_daily_cache,
 )
 from gupiao.reports import build_markdown_report, write_markdown_report
@@ -91,6 +93,23 @@ def build_parser() -> argparse.ArgumentParser:
     import_daily_cache.add_argument("--dry-run", action="store_true")
     import_daily_cache.set_defaults(handler=handle_data_import_daily_cache)
 
+    import_auction_cache = data_subparsers.add_parser(
+        "import-auction-cache",
+        help="Import local cache/jingjia RAR call-auction snapshots into SQLite profiles.",
+    )
+    import_auction_cache.add_argument("--source", default="cache/jingjia")
+    import_auction_cache.add_argument("--db", default="data/cache/market_scan.sqlite")
+    import_auction_cache.add_argument("--start", type=parse_cli_date, default=None)
+    import_auction_cache.add_argument("--end", type=parse_cli_date, default=None)
+    import_auction_cache.add_argument("--provider", default="local_jingjia")
+    import_auction_cache.add_argument("--start-time", default="09:15:00")
+    import_auction_cache.add_argument("--end-time", default="09:25:03")
+    import_auction_cache.add_argument("--conflict", choices=["ignore", "replace"], default="ignore")
+    import_auction_cache.add_argument("--limit-archives", type=positive_int, default=None)
+    import_auction_cache.add_argument("--limit-files", type=positive_int, default=None)
+    import_auction_cache.add_argument("--dry-run", action="store_true")
+    import_auction_cache.set_defaults(handler=handle_data_import_auction_cache)
+
     screen_parser = subparsers.add_parser("screen", help="Run stock screening tasks.")
     screen_subparsers = screen_parser.add_subparsers(dest="screen_command", required=True)
     screen_breakout = screen_subparsers.add_parser("breakout")
@@ -142,6 +161,11 @@ def build_parser() -> argparse.ArgumentParser:
     scan_market.add_argument("--retry-sleep", type=non_negative_float, default=1.0)
     scan_market.add_argument("--request-sleep", type=non_negative_float, default=0.0)
     scan_market.add_argument("--request-timeout", type=positive_float, default=60.0)
+    scan_market.add_argument(
+        "--auction-provider",
+        default=None,
+        help="Use stored auction profiles from this provider, for example local_jingjia.",
+    )
     add_strategy_args(scan_market)
     add_backtest_args(scan_market)
     scan_market.set_defaults(handler=handle_scan_market)
@@ -227,6 +251,25 @@ def handle_data_import_daily_cache(args: argparse.Namespace) -> None:
     write_json_object(result)
 
 
+def handle_data_import_auction_cache(args: argparse.Namespace) -> None:
+    result = import_local_auction_cache(
+        LocalAuctionCacheImportConfig(
+            source_dir=args.source,
+            db_path=args.db,
+            start=args.start,
+            end=args.end,
+            provider=args.provider,
+            start_time=args.start_time,
+            end_time=args.end_time,
+            conflict=args.conflict,
+            limit_archives=args.limit_archives,
+            limit_files=args.limit_files,
+            dry_run=args.dry_run,
+        )
+    )
+    write_json_object(result)
+
+
 def handle_screen_breakout(args: argparse.Namespace) -> None:
     bars = read_daily_bars_jsonl(args.bars)
     candidate = strategy_from_args(args).evaluate(args.symbol, bars)
@@ -303,6 +346,7 @@ def handle_scan_market(args: argparse.Namespace) -> None:
         retry_sleep_seconds=args.retry_sleep,
         request_sleep_seconds=args.request_sleep,
         request_timeout_seconds=args.request_timeout,
+        auction_provider=args.auction_provider,
     )
     result = run_market_scan(
         AkshareProvider(),
@@ -336,6 +380,8 @@ def add_strategy_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--volume-window", type=positive_int, default=20)
     parser.add_argument("--breakout-window", type=positive_int, default=20)
     parser.add_argument("--min-volume-ratio", type=float, default=1.5)
+    parser.add_argument("--min-auction-score", type=float, default=None)
+    parser.add_argument("--auction-score-weight", type=float, default=0.15)
 
 
 def add_signal_args(parser: argparse.ArgumentParser) -> None:
@@ -360,6 +406,8 @@ def strategy_from_args(args: argparse.Namespace) -> MovingAverageVolumeBreakoutS
         volume_window=args.volume_window,
         breakout_window=args.breakout_window,
         min_volume_ratio=args.min_volume_ratio,
+        min_auction_score=args.min_auction_score,
+        auction_score_weight=args.auction_score_weight,
     )
 
 
@@ -399,7 +447,7 @@ def to_jsonable(value: Any) -> Any:
         return [to_jsonable(item) for item in value]
     if isinstance(value, Path):
         return str(value)
-    if isinstance(value, (date, datetime)):
+    if isinstance(value, date | datetime):
         return value.isoformat()
     return value
 

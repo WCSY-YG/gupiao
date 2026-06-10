@@ -1,6 +1,11 @@
 """Data ingestion interfaces and schemas."""
 
 from gupiao.data.akshare_provider import AkshareProvider
+from gupiao.data.local_auction_cache import (
+    LocalAuctionCacheImportConfig,
+    LocalAuctionCacheImportResult,
+    import_local_auction_cache,
+)
 from gupiao.data.local_daily_cache import (
     LocalDailyCacheImportConfig,
     LocalDailyCacheImportResult,
@@ -23,11 +28,14 @@ __all__ = [
     "DailyBar",
     "DataProvider",
     "Instrument",
+    "LocalAuctionCacheImportConfig",
+    "LocalAuctionCacheImportResult",
     "LocalDailyCacheImportConfig",
     "LocalDailyCacheImportResult",
     "SQLiteStore",
     "ValidationIssue",
     "has_errors",
+    "import_local_auction_cache",
     "import_local_daily_cache",
     "validate_daily_bars",
     "validate_instruments",

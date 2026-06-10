@@ -13,7 +13,7 @@ Every strategy must define:
 
 - Universe: market, boards, industries, ST/exclusion rules.
 - Required data: bars, fundamentals, money flow, indicators, index benchmark.
-- Optional auction data: same-day call-auction profile with indicative price, gap, volume ratio, range, and strength score.
+- Optional auction data: same-day call-auction profile with indicative price, gap, volume ratio, range, bid/ask imbalance, and strength score.
 - Signal logic: exact filters or factor scoring formula.
 - Ranking logic: tie-breakers, weights, top N, thresholds.
 - Rebalance rule: daily, weekly, monthly, or signal-triggered.
@@ -33,7 +33,7 @@ Every strategy must define:
 - Trend: moving average alignment, Donchian breakout, relative strength.
 - Reversal: RSI/KDJ/CCI oversold recovery, low volatility contraction.
 - Volume-price: volume breakout, price-volume divergence, money inflow.
-- Call auction: positive but not overheated gap, meaningful auction volume, stable indicative price range, bid/ask imbalance when available.
+- Call auction: positive but not overheated gap, meaningful auction volume, stable indicative price range, and supportive bid/ask imbalance from `auction_profiles` when available.
 - Pattern: candlestick patterns from TA-Lib or local pattern rules.
 - Multi-factor: value, quality, growth, momentum, volatility, liquidity scoring.
 
@@ -46,6 +46,13 @@ Borrow the batch-job split from myhhub/stock without copying its full deployment
 - Strategy jobs produce candidate rows with score, rank, and explanation fields.
 - Validation jobs backtest selected candidates and record false positives.
 - Report jobs summarize candidate lists, signal reasons, and risk caveats.
+
+## Current MVP Auction Enhancement
+
+- Baseline strategy: `MovingAverageVolumeBreakoutStrategy`.
+- Stored auction provider: `local_jingjia` in SQLite `auction_profiles`.
+- Use `min_auction_score` as an optional hard filter and `auction_score_weight` as a bounded blend into candidate score.
+- Keep auction metrics in candidate explanations: `auction_strength_score`, `auction_gap_pct`, `auction_volume_ratio_to_daily`, and `auction_bid_ask_imbalance`.
 
 ## Validation
 

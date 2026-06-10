@@ -67,6 +67,7 @@ class AuctionProfile:
     gap_pct: float | None = None
     range_pct: float | None = None
     volume_ratio_to_daily: float | None = None
+    bid_ask_imbalance: float | None = None
     strength_score: float = 50.0
     provider: str | None = None
     fetched_at: datetime | None = None

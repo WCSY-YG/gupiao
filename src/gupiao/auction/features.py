@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from gupiao.data import AuctionMinuteBar, AuctionProfile
+from gupiao.data.schema import AuctionMinuteBar, AuctionProfile
 
 
 def build_auction_profile(
@@ -13,6 +13,7 @@ def build_auction_profile(
     *,
     previous_close: float | None = None,
     average_daily_volume: float | None = None,
+    bid_ask_imbalance: float | None = None,
 ) -> AuctionProfile | None:
     if not minutes:
         return None
@@ -45,10 +46,12 @@ def build_auction_profile(
         gap_pct=gap_pct,
         range_pct=range_pct,
         volume_ratio_to_daily=volume_ratio,
+        bid_ask_imbalance=bid_ask_imbalance,
         strength_score=score_auction_profile(
             gap_pct=gap_pct,
             range_pct=range_pct,
             volume_ratio_to_daily=volume_ratio,
+            bid_ask_imbalance=bid_ask_imbalance,
         ),
         provider=latest.provider,
         fetched_at=latest.fetched_at,
@@ -60,6 +63,7 @@ def score_auction_profile(
     gap_pct: float | None,
     range_pct: float | None,
     volume_ratio_to_daily: float | None,
+    bid_ask_imbalance: float | None = None,
 ) -> float:
     score = 50.0
     if gap_pct is not None:
@@ -68,6 +72,8 @@ def score_auction_profile(
         score += clamp(volume_ratio_to_daily * 100, 0.0, 25.0)
     if range_pct is not None:
         score -= clamp(range_pct * 200, 0.0, 15.0)
+    if bid_ask_imbalance is not None:
+        score += clamp(bid_ask_imbalance * 12, -12.0, 12.0)
     return round(clamp(score, 0.0, 100.0), 2)
 
 

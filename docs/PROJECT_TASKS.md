@@ -1,6 +1,6 @@
 # 项目任务清单
 
-更新时间：2026-06-10 16:55 CST
+更新时间：2026-06-10 17:19 CST
 
 本文档是项目自动推进的状态源。每一轮任务开始前先读取本文件；每完成一个任务，必须更新状态并本地提交。GitHub 推送若失败，记录 `push_pending` 后继续推进。
 
@@ -16,7 +16,7 @@
 ## 当前指针
 
 - 当前阶段：Phase 6。
-- 下一项任务：P6-02 仍在进行全 A 股扫描；P6-04 待导入本地历史竞价缓存用于更真实的竞价回测。
+- 下一项任务：P6-05 基于 K 线与本地竞价画像做样本外回测和策略迭代；P6-02 全 A 股扫描仍可作为长期可恢复数据作业继续运行。
 - 推进规则：从上到下选择第一个 `pending` 且依赖已完成的任务。
 - GitHub 更新规则：每完成一个任务，更新本清单和相关项目记忆，执行一次本地 commit；远端推送失败时记录 `push_pending`，不阻塞后续任务。
 
@@ -47,7 +47,7 @@
 | P6-01 | done | Phase 6 | 实现可恢复全 A 股市场扫描流水线 | `scan market` 支持 AKShare 全市场拉取、SQLite 缓存、逐股回测、失败不中断和轻量 Markdown 汇总 | P5-02 |
 | P6-02 | in_progress | Phase 6 | 运行完整全 A 股扫描并提交轻量汇总 | 无 `--limit` 跑完 2023-06-10 至 2026-06-10 全 A 股，提交 `reports/summaries/latest_market_scan.md` | P6-01 |
 | P6-03 | done | Phase 6 | 整合竞价数据增强选股与回测 | 支持 AKShare 盘前分钟数据、竞价画像、竞价增强策略评分、历史竞价画像注入回测和研究样本生成 | P2-02, P3-01 |
-| P6-04 | pending | Phase 6 | 导入本地历史竞价缓存 | 将 `cache/jingjia/*.rar` 解压/解析为竞价明细或竞价画像表，建立按股票和交易日查询接口 | P6-03 |
+| P6-04 | done | Phase 6 | 导入本地历史竞价缓存 | 将 `cache/jingjia/*.rar` 解压/解析为竞价明细或竞价画像表，建立按股票和交易日查询接口 | P6-03 |
 | P6-05 | pending | Phase 6 | 基于 K 线与竞价数据迭代优化 skill | 用最近 K 线和历史竞价画像构建样本外回测，比较原策略与竞价增强策略并更新选股 skill 参数/阈值 | P6-04 |
 
 ## 完成记录
@@ -77,3 +77,4 @@
 - 2026-06-10 12:56 CST：后续恢复扫描曾因单只 AKShare 请求长时间挂起暂停；新增 `--request-timeout` 单次请求超时参数，推荐用 `--request-sleep 2.0 --retry-sleep 3 --request-timeout 60` 从 SQLite 缓存继续推进，GitHub 推送仍不阻塞任务。
 - 2026-06-10 16:16 CST：新增 `data import-daily-cache` 本地日 K CSV 导入命令，已将 `cache/daily_k/market_data_cache` 中 2023-06-12 至 2026-04-23 的本地日 K 整合进 `data/cache/market_scan.sqlite`；新增扫描缓存完整性保护，避免半截缓存覆盖全区间扫描判断。
 - 2026-06-10 16:55 CST：完成 P6-03 竞价数据增强第一阶段，新增 AKShare 盘前分钟数据接入、竞价画像/评分、选股策略竞价加权、回测竞价画像注入、研究样本生成和 `skills/auction-data-integration`；后续 P6-04/P6-05 继续导入本地历史竞价缓存并做样本外迭代。
+- 2026-06-10 17:19 CST：完成 P6-04 本地历史竞价缓存导入入口，新增 `data import-auction-cache`、SQLite `auction_profiles` 存储/查询、RAR 流式解析、委买委卖不平衡特征、扫描 `--auction-provider` 接入和竞价增强扫描参数；已对 `2026-05-06` 做真实小导入，写入 5,490 条 `local_jingjia` 竞价画像，29 个月全量导入留作可恢复数据作业。

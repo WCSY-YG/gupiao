@@ -121,6 +121,8 @@ class MovingAverageVolumeBreakoutStrategy:
                 metrics["auction_volume_ratio_to_daily"] = (
                     auction_profile.volume_ratio_to_daily
                 )
+            if auction_profile.bid_ask_imbalance is not None:
+                metrics["auction_bid_ask_imbalance"] = auction_profile.bid_ask_imbalance
             score = score_with_auction(
                 base_score=score,
                 auction_score=auction_profile.strength_score,

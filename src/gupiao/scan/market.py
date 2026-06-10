@@ -7,7 +7,7 @@ import signal
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, is_dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from threading import current_thread, main_thread
 from typing import Any
@@ -43,6 +43,7 @@ class MarketScanConfig:
     retry_sleep_seconds: float = 1.0
     request_sleep_seconds: float = 0.0
     request_timeout_seconds: float | None = 60.0
+    auction_provider: str | None = None
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,8 @@ class ScanSymbolResult:
     max_drawdown: float | None = None
     win_rate: float | None = None
     trade_count: int = 0
+    auction_strength_score: float | None = None
+    auction_gap_pct: float | None = None
     error: str | None = None
 
 
@@ -201,7 +204,22 @@ def scan_instrument(
                 error=f"data_quality_errors={len(errors)}",
             )
 
-        candidate = strategy.evaluate(instrument.symbol, bars)
+        auction_profiles = {
+            profile.trade_date: profile
+            for profile in store.get_auction_profiles(
+                instrument.symbol,
+                start=config.start,
+                end=config.end,
+                provider=config.auction_provider,
+            )
+        }
+        latest_trade_date = max(bar.trade_date for bar in bars)
+        latest_auction_profile = auction_profiles.get(latest_trade_date)
+        candidate = strategy.evaluate(
+            instrument.symbol,
+            bars,
+            auction_profile=latest_auction_profile,
+        )
         signal = (
             build_breakout_signal(
                 candidate,
@@ -218,6 +236,7 @@ def scan_instrument(
             bars,
             strategy=strategy,
             config=backtest_config,
+            auction_profiles=auction_profiles,
         )
         return ScanSymbolResult(
             symbol=instrument.symbol,
@@ -225,13 +244,17 @@ def scan_instrument(
             status="success",
             bars_count=len(bars),
             data_source=data_source,
-            latest_trade_date=max(bar.trade_date for bar in bars),
+            latest_trade_date=latest_trade_date,
             candidate_score=candidate.score if candidate is not None else None,
             signal_confidence=signal.confidence if signal is not None else None,
             total_return=backtest.total_return,
             max_drawdown=backtest.max_drawdown,
             win_rate=backtest.win_rate,
             trade_count=backtest.trade_count,
+            auction_strength_score=(
+                latest_auction_profile.strength_score if latest_auction_profile else None
+            ),
+            auction_gap_pct=latest_auction_profile.gap_pct if latest_auction_profile else None,
         )
     except Exception as exc:  # noqa: BLE001 - per-symbol failures should not stop the scan.
         return ScanSymbolResult(
@@ -294,7 +317,9 @@ def fetch_daily_bars_once(
     adjust: str,
     request_timeout_seconds: float | None,
 ) -> list[DailyBar]:
-    fetch = lambda: list(provider.fetch_daily_bars(symbol, start, end, adjust=adjust))
+    def fetch() -> list[DailyBar]:
+        return list(provider.fetch_daily_bars(symbol, start, end, adjust=adjust))
+
     if request_timeout_seconds is None:
         return fetch()
     return call_with_timeout(
@@ -377,6 +402,9 @@ def build_public_summary(scan: MarketScanResult) -> str:
         f"- 请求节流：{scan.config.request_sleep_seconds:g} 秒",
         f"- 重试退避：{scan.config.retry_sleep_seconds:g} 秒",
         f"- 单次请求超时：{format_timeout(scan.config.request_timeout_seconds)}",
+        f"- 竞价画像源：`{scan.config.auction_provider}`"
+        if scan.config.auction_provider
+        else "- 竞价画像源：未启用",
         f"- 本地完整结果：`{scan.result_path}`",
         f"- 本地失败明细：`{scan.failure_path}`",
         "",
@@ -399,8 +427,9 @@ def build_public_summary(scan: MarketScanResult) -> str:
     if ranked:
         lines.extend(
             [
-                "| 排名 | 代码 | 名称 | 候选分 | 总收益 | 最大回撤 | 胜率 | 交易次数 | 最新交易日 |",
-                "|---:|---|---|---:|---:|---:|---:|---:|---|",
+                "| 排名 | 代码 | 名称 | 候选分 | 竞价分 | 竞价缺口 | "
+                "总收益 | 最大回撤 | 胜率 | 交易次数 | 最新交易日 |",
+                "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---|",
             ]
         )
         for index, result in enumerate(ranked, start=1):
@@ -408,6 +437,8 @@ def build_public_summary(scan: MarketScanResult) -> str:
                 "| "
                 f"{index} | `{result.symbol}` | {escape_table_text(result.name)} | "
                 f"{format_optional_float(result.candidate_score)} | "
+                f"{format_optional_float(result.auction_strength_score)} | "
+                f"{format_optional_pct(result.auction_gap_pct)} | "
                 f"{format_optional_pct(result.total_return)} | "
                 f"{format_optional_pct(result.max_drawdown)} | "
                 f"{format_optional_pct(result.win_rate)} | "
@@ -488,7 +519,7 @@ def to_jsonable(value: Any) -> Any:
         return [to_jsonable(item) for item in value]
     if isinstance(value, Path):
         return str(value)
-    if isinstance(value, (date, datetime)):
+    if isinstance(value, date | datetime):
         return value.isoformat()
     return value
 
@@ -527,7 +558,7 @@ def escape_table_text(value: str) -> str:
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc).replace(microsecond=0)
+    return datetime.now(UTC).replace(microsecond=0)
 
 
 def sleep_after_request(seconds: float, sleep: Callable[[float], None]) -> None:

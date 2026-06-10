@@ -240,3 +240,47 @@ class AkshareProviderTest(TestCase):
         self.assertEqual(args.retries, 3)
         self.assertEqual(args.request_sleep, 0.0)
         self.assertEqual(args.request_timeout, 60.0)
+        self.assertIsNone(args.auction_provider)
+        self.assertIsNone(args.min_auction_score)
+        self.assertEqual(args.auction_score_weight, 0.15)
+
+    def test_cli_scan_market_auction_arguments_parse_without_fetching(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "scan",
+                "market",
+                "--auction-provider",
+                "local_jingjia",
+                "--min-auction-score",
+                "65",
+                "--auction-score-weight",
+                "0.25",
+            ]
+        )
+
+        self.assertEqual(args.auction_provider, "local_jingjia")
+        self.assertEqual(args.min_auction_score, 65.0)
+        self.assertEqual(args.auction_score_weight, 0.25)
+
+    def test_cli_import_auction_cache_arguments_parse_without_importing(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "data",
+                "import-auction-cache",
+                "--source",
+                "cache/jingjia",
+                "--start",
+                "2026-05-06",
+                "--end",
+                "2026-05-29",
+                "--limit-files",
+                "2",
+                "--dry-run",
+            ]
+        )
+
+        self.assertEqual(args.source, "cache/jingjia")
+        self.assertEqual(args.start, date(2026, 5, 6))
+        self.assertEqual(args.end, date(2026, 5, 29))
+        self.assertEqual(args.limit_files, 2)
+        self.assertTrue(args.dry_run)

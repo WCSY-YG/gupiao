@@ -206,10 +206,10 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. P6-02：正在运行完整全 A 股扫描并提交 `reports/summaries/latest_market_scan.md`。
-2. 完整扫描命令使用 `PYTHONPATH=src python -m gupiao.cli scan market --start 2023-06-10 --end 2026-06-10 --adjust hfq --db data/cache/market_scan.sqlite --output reports/generated/market_scan/latest --public-summary reports/summaries/latest_market_scan.md --top 30 --request-sleep 2.0 --retry-sleep 3 --request-timeout 60`。
+1. P6-05：基于 K 线与本地竞价画像做样本外回测，比较纯 K 线策略和竞价增强策略，迭代 skill 阈值和评分权重。
+2. P6-02 完整全 A 股扫描仍是长期可恢复数据作业；需要时继续使用 `PYTHONPATH=src python -m gupiao.cli scan market --start 2023-06-10 --end 2026-06-10 --adjust hfq --db data/cache/market_scan.sqlite --output reports/generated/market_scan/latest --public-summary reports/summaries/latest_market_scan.md --top 30 --request-sleep 2.0 --retry-sleep 3 --request-timeout 60`。
 3. 原始行情、SQLite、逐股完整结果继续留在 `data/cache/` 和 `reports/generated/`，不提交 GitHub。
-4. 若全量扫描耗时过长或中断，重复运行同一命令即可复用 SQLite 缓存继续推进；`--request-sleep` 用于降低 AKShare 远端断连/限流，`--request-timeout` 用于跳过长时间挂起的单只请求。
+4. 若全量扫描或竞价导入耗时过长或中断，重复运行同一命令即可复用 SQLite 缓存继续推进。
 5. 后续可继续扩展策略实验、报告模板、组合优化和模拟交易风控。
 
 每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交本地 Git。GitHub 推送恢复后再同步 `push_pending` 提交。
@@ -249,7 +249,17 @@ MVP 优先参考项目：
 - 已修正研究样本的未来函数隐患：竞价日样本特征只使用竞价画像和前一交易日 K 线特征，目标收益从竞价日开盘价向后计算；不能把当天收盘相对开盘等盘后信息作为盘前特征。
 - 已执行并通过验证：`conda run -n agent ruff check src/gupiao/auction src/gupiao/strategies/screening.py src/gupiao/backtest/engine.py src/gupiao/research/experiments.py tests/test_auction_features.py tests/test_screening_strategy.py tests/test_backtest_engine.py tests/test_research_experiments.py`、`conda run -n agent python -m compileall -q src tests`、`conda run -n agent env PYTHONPATH=src python -m unittest discover -s tests`（66 项通过）、`conda run -n agent env PYTHONPATH=src python -m gupiao.cli --version`（输出 `0.2.0`）。
 - 当前工作区在提交后应保持 `main...origin/main` 干净；若其他线程接手，先运行 `git status --short --branch` 复核。
-- 下一步建议优先执行 P6-04：将 `cache/jingjia/*.rar` 历史集合竞价快照解析成专门表或画像缓存，再执行 P6-05 对比“纯 K 线策略”和“竞价增强策略”的近期滚动回测，迭代 skill 阈值和评分权重。
+- 当时下一步建议为 P6-04：将 `cache/jingjia/*.rar` 历史集合竞价快照解析成专门表或画像缓存，再执行 P6-05 对比“纯 K 线策略”和“竞价增强策略”的近期滚动回测，迭代 skill 阈值和评分权重。
+
+## 2026-06-10 17:19 CST 本地竞价缓存导入记忆
+
+- 新增 `PYTHONPATH=src python -m gupiao.cli data import-auction-cache`，支持从 `cache/jingjia/*.rar` 流式读取集合竞价快照，按 `symbol + trade_date + provider` 写入 SQLite `auction_profiles`。
+- 画像字段包括竞价价格、竞价缺口、竞价区间波动、竞价量比、委买委卖不平衡和 0-100 竞价强度分；`total_volume_trade` 按手数导入并转换为股数。
+- `SQLiteStore` 新增 `upsert_auction_profiles` 和 `get_auction_profiles`；`scan market` 新增 `--auction-provider`，会按交易日把竞价画像注入当前候选评估和逐股回测。
+- 策略 CLI 新增 `--min-auction-score` 和 `--auction-score-weight`，用于竞价硬过滤与候选分混合；公开扫描汇总会显示竞价画像源、竞价分和竞价缺口。
+- 已做真实小导入验证：`2026-05-06` 一个日文件读取 416,710 行快照，时间窗内 415,732 行，构建并写入 5,490 条 `local_jingjia` 竞价画像；当前 `auction_profiles` 覆盖日期为 `2026-05-06`。
+- `cache/jingjia` 当前有 29 个 RAR 月包（`202401.rar` 至 `202605.rar`），约 1.3G；29 个月全量导入是较长数据作业，建议先 dry-run，再按日期范围运行同一导入命令，原始 RAR 和 SQLite 不提交 GitHub。
+- 下一步 P6-05 应优先用已导入或继续导入后的竞价画像，对比 baseline 与 `local_jingjia` 竞价增强策略的近期样本外表现，再更新 `skills/stock-screening-strategies` 的阈值建议。
 
 ## 注意事项
 

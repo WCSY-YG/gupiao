@@ -191,7 +191,40 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli data import-daily-cac
 - 默认 `--conflict ignore`，已有 AKShare 行不会被本地 CSV 覆盖。
 - 新格式 CSV 使用真实 `成交量`；老格式缺少成交量时用 `amount / close` 估算，并把 provider 标记为 `local_daily_k_estimated_volume`。
 - 本地日 K 当前覆盖到 `2026-04-23`；若扫描结束日晚于缓存最新日，系统不会把半截缓存误当完整数据。
-- `cache/jingjia/*.rar` 是集合竞价快照压缩包，字段粒度不同，暂保留为原始数据源，后续应导入到专门的竞价表，不混入日 K 表。
+
+### 导入本地集合竞价缓存
+
+`cache/jingjia/*.rar` 是按月份打包的集合竞价快照。导入器会用 `unrar` 流式读取压缩包，把 `09:15:00` 至 `09:25:03` 的快照压成每只股票每天一条 `auction_profiles` 画像，写入 `data/cache/market_scan.sqlite`。
+
+建议先 dry-run 看规模：
+
+```bash
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli data import-auction-cache \
+  --source cache/jingjia \
+  --db data/cache/market_scan.sqlite \
+  --start 2024-01-01 \
+  --end 2026-05-31 \
+  --dry-run
+```
+
+确认后再导入：
+
+```bash
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli data import-auction-cache \
+  --source cache/jingjia \
+  --db data/cache/market_scan.sqlite \
+  --start 2024-01-01 \
+  --end 2026-05-31 \
+  --provider local_jingjia \
+  --conflict ignore
+```
+
+导入规则：
+
+- 默认只保存竞价画像，不提交原始 RAR、SQLite 或完整逐股结果。
+- `total_volume_trade` 按竞价快照口径视为手数，导入时转换为股数。
+- 画像字段包括竞价价格、缺口、区间波动、竞价量比、委买委卖不平衡和竞价强度分。
+- `--conflict ignore` 保留已有画像；需要重算竞价特征时可改用 `--conflict replace`。
 
 ### 运行全 A 股市场扫描
 
@@ -217,6 +250,25 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli scan market \
   --request-timeout 60
 ```
 
+若已经导入本地竞价画像，可以让扫描和回测使用同日竞价表现：
+
+```bash
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli scan market \
+  --start 2024-01-01 \
+  --end 2026-05-31 \
+  --adjust hfq \
+  --db data/cache/market_scan.sqlite \
+  --output reports/generated/market_scan/latest \
+  --public-summary reports/summaries/latest_market_scan.md \
+  --top 30 \
+  --auction-provider local_jingjia \
+  --min-auction-score 60 \
+  --auction-score-weight 0.15 \
+  --request-sleep 2.0 \
+  --retry-sleep 3 \
+  --request-timeout 60
+```
+
 先做 3 只股票 smoke test：
 
 ```bash
@@ -231,6 +283,9 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli scan market --limit 3
 - `--request-sleep`：每次真实行情请求后的节流秒数，缓存命中不会等待；接口断连较多时可调大。
 - `--retry-sleep`：失败重试之间的线性退避基准秒数。
 - `--request-timeout`：单只股票单次行情请求超时秒数，防止 AKShare 或远端连接长时间挂起。
+- `--auction-provider`：启用 SQLite 中对应 provider 的竞价画像，例如 `local_jingjia`。
+- `--min-auction-score`：要求候选日存在竞价画像且竞价强度不低于阈值。
+- `--auction-score-weight`：候选排序分中竞价分的混合权重。
 
 ## 推荐工作流
 
@@ -241,8 +296,9 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli scan market --limit 3
 5. 用 `signal breakout` 解释买卖点。
 6. 用 `backtest breakout` 验证策略表现。
 7. 用 `report breakout` 生成中文研究报告。
-8. 用 `scan market` 批量扫描全 A 股，并提交小型汇总。
-9. 扩展策略、指标、因子或报告模板，并补充测试。
+8. 用 `data import-daily-cache` 和 `data import-auction-cache` 整合本地缓存。
+9. 用 `scan market` 批量扫描全 A 股，并提交小型汇总。
+10. 扩展策略、指标、因子或报告模板，并补充测试。
 
 ## 项目文档
 

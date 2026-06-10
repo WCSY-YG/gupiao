@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import time
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 from gupiao.backtest import BacktestConfig
-from gupiao.data import DailyBar, Instrument, SQLiteStore
+from gupiao.data import AuctionProfile, DailyBar, Instrument, SQLiteStore
 from gupiao.scan import (
     MarketScanConfig,
     MarketScanResult,
@@ -16,6 +16,8 @@ from gupiao.scan import (
     run_market_scan,
 )
 from gupiao.scan.market import ranked_candidates
+from gupiao.strategies import MovingAverageVolumeBreakoutStrategy
+
 from tests.test_backtest_engine import small_strategy
 from tests.test_screening_strategy import breakout_bars
 
@@ -125,6 +127,70 @@ class MarketScanTest(TestCase):
             self.assertEqual(result.cached, 1)
             self.assertEqual(result.fetched, 0)
             self.assertEqual(result.results[0].status, "success")
+
+    def test_market_scan_uses_stored_auction_profiles(self) -> None:
+        with TemporaryDirectory() as directory:
+            db_path = f"{directory}/scan.sqlite"
+            store = SQLiteStore(db_path)
+            bars = breakout_bars()
+            latest_trade_date = max(bar.trade_date for bar in bars)
+            store.upsert_auction_profiles(
+                [
+                    AuctionProfile(
+                        symbol="000001",
+                        trade_date=latest_trade_date,
+                        auction_time=datetime(2026, 6, 10, 9, 25, 3),
+                        indicative_price=12.6,
+                        open=12.6,
+                        high=12.7,
+                        low=12.5,
+                        volume=100_000.0,
+                        previous_close=12.35,
+                        gap_pct=0.02,
+                        range_pct=0.016,
+                        volume_ratio_to_daily=1.2,
+                        bid_ask_imbalance=0.4,
+                        strength_score=90.0,
+                        provider="local_jingjia",
+                    )
+                ]
+            )
+            provider = FakeMarketProvider({"000001": bars})
+            config = MarketScanConfig(
+                start=date(2026, 6, 1),
+                end=latest_trade_date,
+                db_path=db_path,
+                output_dir=f"{directory}/generated",
+                public_summary_path=f"{directory}/summary.md",
+                limit=1,
+                retry_sleep_seconds=0,
+                auction_provider="local_jingjia",
+            )
+            strategy = MovingAverageVolumeBreakoutStrategy(
+                short_window=3,
+                medium_window=5,
+                long_window=8,
+                volume_window=5,
+                breakout_window=5,
+                min_volume_ratio=1.5,
+                min_auction_score=80.0,
+            )
+
+            result = run_market_scan(
+                provider,
+                config=config,
+                store=store,
+                strategy=strategy,
+                backtest_config=BacktestConfig(atr_window=3, max_holding_bars=2),
+                sleep=lambda _: None,
+            )
+
+            self.assertEqual(result.candidate_count, 1)
+            self.assertEqual(result.results[0].auction_strength_score, 90.0)
+            self.assertEqual(result.results[0].auction_gap_pct, 0.02)
+            summary = result.public_summary_path.read_text(encoding="utf-8")
+            self.assertIn("`local_jingjia`", summary)
+            self.assertIn("90.00", summary)
 
     def test_market_scan_fetches_when_cached_bars_do_not_cover_end(self) -> None:
         with TemporaryDirectory() as directory:
@@ -247,8 +313,8 @@ class MarketScanTest(TestCase):
 
     def test_public_summary_respects_top_limit(self) -> None:
         scan = MarketScanResult(
-            started_at=datetime(2026, 6, 10, tzinfo=timezone.utc),
-            finished_at=datetime(2026, 6, 10, tzinfo=timezone.utc),
+            started_at=datetime(2026, 6, 10, tzinfo=UTC),
+            finished_at=datetime(2026, 6, 10, tzinfo=UTC),
             config=MarketScanConfig(top=1),
             total_instruments=2,
             processed=2,

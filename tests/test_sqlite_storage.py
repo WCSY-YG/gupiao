@@ -4,7 +4,7 @@ from datetime import date, datetime
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
-from gupiao.data import DailyBar, Instrument, SQLiteStore
+from gupiao.data import AuctionProfile, DailyBar, Instrument, SQLiteStore
 
 
 class SQLiteStoreTest(TestCase):
@@ -84,3 +84,36 @@ class SQLiteStoreTest(TestCase):
                 adjust="hfq",
             )
             self.assertEqual(bars, [second])
+
+    def test_auction_profile_upsert_and_query(self) -> None:
+        with TemporaryDirectory() as directory:
+            store = SQLiteStore(f"{directory}/gupiao.sqlite")
+            profile = AuctionProfile(
+                symbol="000001",
+                trade_date=date(2026, 5, 6),
+                auction_time=datetime(2026, 5, 6, 9, 25, 3),
+                indicative_price=11.55,
+                open=11.55,
+                high=11.6,
+                low=11.5,
+                volume=100_000.0,
+                amount=1_155_000.0,
+                latest_price=11.55,
+                previous_close=11.49,
+                gap_pct=(11.55 / 11.49) - 1,
+                range_pct=(11.6 / 11.5) - 1,
+                volume_ratio_to_daily=1.2,
+                bid_ask_imbalance=0.4,
+                strength_score=88.0,
+                provider="local_jingjia",
+            )
+
+            self.assertEqual(store.upsert_auction_profiles([profile]), 1)
+
+            profiles = store.get_auction_profiles(
+                "000001",
+                start=date(2026, 5, 1),
+                end=date(2026, 5, 31),
+                provider="local_jingjia",
+            )
+            self.assertEqual(profiles, [profile])
