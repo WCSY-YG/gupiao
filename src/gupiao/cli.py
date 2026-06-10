@@ -24,7 +24,12 @@ from gupiao.data import (
     refresh_market_daily_cache,
 )
 from gupiao.reports import build_markdown_report, write_markdown_report
-from gupiao.research import AuctionStrategyComparisonConfig, run_auction_strategy_comparison
+from gupiao.research import (
+    AuctionRollingValidationConfig,
+    AuctionStrategyComparisonConfig,
+    run_auction_rolling_validation,
+    run_auction_strategy_comparison,
+)
 from gupiao.scan import DEFAULT_SCAN_END, DEFAULT_SCAN_START, MarketScanConfig, run_market_scan
 from gupiao.signals import build_breakout_signal
 from gupiao.strategies import (
@@ -272,6 +277,37 @@ def build_parser() -> argparse.ArgumentParser:
     add_strategy_args(auction_compare)
     add_backtest_args(auction_compare)
     auction_compare.set_defaults(handler=handle_research_auction_compare)
+
+    auction_rolling = research_subparsers.add_parser(
+        "auction-rolling",
+        help="Run monthly rolling validation for auction score thresholds and weights.",
+    )
+    auction_rolling.add_argument("--start", required=True, type=parse_cli_date)
+    auction_rolling.add_argument("--end", required=True, type=parse_cli_date)
+    auction_rolling.add_argument("--adjust", choices=["raw", "qfq", "hfq"], default="hfq")
+    auction_rolling.add_argument("--db", default="data/cache/market_scan.sqlite")
+    auction_rolling.add_argument("--output", default="reports/generated/auction_rolling/latest")
+    auction_rolling.add_argument(
+        "--public-summary",
+        default="reports/summaries/latest_auction_rolling.md",
+    )
+    auction_rolling.add_argument("--auction-provider", default="local_jingjia")
+    auction_rolling.add_argument("--top", type=positive_int, default=30)
+    auction_rolling.add_argument("--limit", type=positive_int, default=None)
+    auction_rolling.add_argument(
+        "--min-auction-scores",
+        default="none,50,60,70",
+        help="Comma-separated thresholds; use none for soft ranking without a hard gate.",
+    )
+    auction_rolling.add_argument(
+        "--auction-score-weights",
+        default="0,0.10,0.15,0.25",
+        help="Comma-separated auction score weights between 0 and 1.",
+    )
+    auction_rolling.add_argument("--window-months", type=positive_int, default=1)
+    add_strategy_args(auction_rolling, include_auction_params=False)
+    add_backtest_args(auction_rolling)
+    auction_rolling.set_defaults(handler=handle_research_auction_rolling)
 
     scan_parser = subparsers.add_parser("scan", help="Run market-wide automation tasks.")
     scan_subparsers = scan_parser.add_subparsers(dest="scan_command", required=True)
@@ -685,6 +721,48 @@ def handle_research_auction_compare(args: argparse.Namespace) -> None:
     )
 
 
+def handle_research_auction_rolling(args: argparse.Namespace) -> None:
+    baseline_strategy = strategy_from_args(args, use_auction_filters=False)
+
+    def auction_strategy_factory(
+        min_auction_score: float | None,
+        auction_score_weight: float,
+    ) -> ScreeningStrategy:
+        variant_args = argparse.Namespace(**vars(args))
+        variant_args.min_auction_score = min_auction_score
+        variant_args.auction_score_weight = auction_score_weight
+        return strategy_from_args(variant_args, use_auction_filters=True)
+
+    config = AuctionRollingValidationConfig(
+        start=args.start,
+        end=args.end,
+        adjust=args.adjust,
+        db_path=args.db,
+        output_dir=args.output,
+        public_summary_path=args.public_summary,
+        auction_provider=args.auction_provider,
+        top=args.top,
+        limit=args.limit,
+        min_auction_scores=parse_optional_float_csv(args.min_auction_scores),
+        auction_score_weights=parse_float_csv(args.auction_score_weights),
+        window_months=args.window_months,
+    )
+    result = run_auction_rolling_validation(
+        config=config,
+        baseline_strategy=baseline_strategy,
+        auction_strategy_factory=auction_strategy_factory,
+        backtest_config=backtest_config_from_args(args),
+    )
+    write_json_object(
+        {
+            "public_summary": result.public_summary_path,
+            "output_dir": result.output_dir,
+            "window_count": len(result.windows),
+            "evaluation_count": len(result.evaluations),
+        }
+    )
+
+
 def handle_scan_market(args: argparse.Namespace) -> None:
     config = MarketScanConfig(
         start=args.start,
@@ -776,7 +854,12 @@ def add_morning_backtest_args(parser: argparse.ArgumentParser) -> None:
     add_backtest_args(parser)
 
 
-def add_strategy_args(parser: argparse.ArgumentParser, *, default: str | None = "ma_volume_breakout") -> None:
+def add_strategy_args(
+    parser: argparse.ArgumentParser,
+    *,
+    default: str | None = "ma_volume_breakout",
+    include_auction_params: bool = True,
+) -> None:
     parser.add_argument("--strategy", default=default)
     parser.add_argument("--short-window", type=positive_int, default=5)
     parser.add_argument("--medium-window", type=positive_int, default=20)
@@ -784,8 +867,9 @@ def add_strategy_args(parser: argparse.ArgumentParser, *, default: str | None = 
     parser.add_argument("--volume-window", type=positive_int, default=20)
     parser.add_argument("--breakout-window", type=positive_int, default=20)
     parser.add_argument("--min-volume-ratio", type=float, default=1.5)
-    parser.add_argument("--min-auction-score", type=float, default=None)
-    parser.add_argument("--auction-score-weight", type=float, default=0.15)
+    if include_auction_params:
+        parser.add_argument("--min-auction-score", type=float, default=None)
+        parser.add_argument("--auction-score-weight", type=float, default=0.15)
 
 
 def add_signal_args(parser: argparse.ArgumentParser) -> None:
@@ -807,8 +891,8 @@ def strategy_from_args(
     *,
     use_auction_filters: bool = True,
 ) -> ScreeningStrategy:
-    min_auction_score = args.min_auction_score if use_auction_filters else None
-    auction_score_weight = args.auction_score_weight if use_auction_filters else 0.0
+    min_auction_score = getattr(args, "min_auction_score", None) if use_auction_filters else None
+    auction_score_weight = getattr(args, "auction_score_weight", 0.15) if use_auction_filters else 0.0
     strategy_id = getattr(args, "strategy", "ma_volume_breakout")
     if not use_auction_filters and strategy_id == "auction_assisted_breakout":
         strategy_id = "ma_volume_breakout"
@@ -1098,6 +1182,38 @@ def optional_float(value: Any) -> float | None:
     if value is None or value == "":
         return None
     return float(value)
+
+
+def parse_optional_float_csv(value: str) -> tuple[float | None, ...]:
+    parsed: list[float | None] = []
+    for item in csv_tokens(value):
+        lowered = item.lower()
+        if lowered in {"none", "null", "soft", "off"}:
+            parsed.append(None)
+        else:
+            parsed.append(float(item))
+    if not parsed:
+        raise argparse.ArgumentTypeError("expected at least one value")
+    return tuple(unique_preserve_order(parsed))
+
+
+def parse_float_csv(value: str) -> tuple[float, ...]:
+    parsed = [float(item) for item in csv_tokens(value)]
+    if not parsed:
+        raise argparse.ArgumentTypeError("expected at least one value")
+    return tuple(unique_preserve_order(parsed))
+
+
+def csv_tokens(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def unique_preserve_order(values: Sequence[Any]) -> list[Any]:
+    unique: list[Any] = []
+    for value in values:
+        if value not in unique:
+            unique.append(value)
+    return unique
 
 
 def parse_cli_date(value: str) -> date:

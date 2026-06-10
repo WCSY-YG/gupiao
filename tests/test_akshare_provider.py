@@ -329,3 +329,32 @@ class AkshareProviderTest(TestCase):
         self.assertEqual(args.auction_provider, "local_jingjia")
         self.assertEqual(args.limit, 10)
         self.assertEqual(args.public_summary, "reports/summaries/latest_auction_validation.md")
+
+    def test_cli_research_auction_rolling_arguments_parse_without_running(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "research",
+                "auction-rolling",
+                "--start",
+                "2026-01-01",
+                "--end",
+                "2026-05-31",
+                "--auction-provider",
+                "local_jingjia",
+                "--min-auction-scores",
+                "none,55,65",
+                "--auction-score-weights",
+                "0,0.15,0.25",
+                "--window-months",
+                "1",
+                "--limit",
+                "10",
+            ]
+        )
+
+        self.assertEqual(args.start, date(2026, 1, 1))
+        self.assertEqual(args.end, date(2026, 5, 31))
+        self.assertEqual(args.min_auction_scores, "none,55,65")
+        self.assertEqual(args.auction_score_weights, "0,0.15,0.25")
+        self.assertEqual(args.window_months, 1)
+        self.assertEqual(args.limit, 10)

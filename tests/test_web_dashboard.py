@@ -10,7 +10,7 @@ from gupiao.data import Instrument, SQLiteStore
 from gupiao.signals import build_breakout_signal
 from gupiao.web import build_app_html, build_dashboard_html, run_web_action, write_dashboard_html
 
-from tests.test_backtest_engine import small_strategy
+from tests.test_backtest_engine import replace_price, small_strategy
 from tests.test_cli_workflows import write_bars_jsonl
 from tests.test_morning_workflow import auction_profile
 from tests.test_screening_strategy import breakout_bars
@@ -70,6 +70,7 @@ class WebDashboardTest(TestCase):
         self.assertIn('data-action="trade_plan"', html)
         self.assertIn('data-action="data_status"', html)
         self.assertIn('data-action="data_refresh_market_cache"', html)
+        self.assertIn('data-action="auction_rolling"', html)
         self.assertIn('id="modeToggle"', html)
         self.assertIn('data-tab="home"', html)
         self.assertIn("普通模式", html)
@@ -172,3 +173,48 @@ class WebDashboardTest(TestCase):
             )
             self.assertEqual(plan["status"], "candidate")
             self.assertIn("09:25", plan["trade_plan"].entry_timing)
+
+    def test_run_web_action_auction_rolling(self) -> None:
+        with TemporaryDirectory() as directory:
+            db_path = f"{directory}/market.sqlite"
+            bars = breakout_bars()
+            bars.append(
+                replace_price(
+                    bars[-1],
+                    close=14.0,
+                    high=15.0,
+                    low=13.8,
+                    days_after=1,
+                )
+            )
+            store = SQLiteStore(db_path)
+            store.upsert_instruments([Instrument(symbol="000001", name="平安银行", market="A股")])
+            store.upsert_daily_bars(bars)
+            store.upsert_auction_profiles([auction_profile("000001", bars[-2].trade_date)])
+
+            result = run_web_action(
+                "auction_rolling",
+                {
+                    "start": bars[0].trade_date.isoformat(),
+                    "end": bars[-1].trade_date.isoformat(),
+                    "db_path": db_path,
+                    "output_dir": f"{directory}/rolling",
+                    "public_summary": f"{directory}/rolling.md",
+                    "auction_provider": "local_jingjia",
+                    "min_auction_scores": "none,80",
+                    "auction_score_weights": "0",
+                    "short_window": "3",
+                    "medium_window": "5",
+                    "long_window": "8",
+                    "volume_window": "5",
+                    "breakout_window": "5",
+                    "min_volume_ratio": "1.5",
+                    "atr_window": "3",
+                    "max_holding_bars": "2",
+                },
+                Path(directory),
+            )
+
+            self.assertEqual(len(result["rolling"].windows), 1)
+            self.assertEqual(len(result["rolling"].evaluations), 2)
+            self.assertTrue(Path(result["public_summary"]["path"]).exists())

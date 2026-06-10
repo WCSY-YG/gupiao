@@ -38,11 +38,13 @@ from gupiao.factors import FactorInput, rank_factors
 from gupiao.indicators import atr, bollinger_bands, closes, ema, kdj, macd, obv, rsi, sma
 from gupiao.reports import build_markdown_report, write_markdown_report
 from gupiao.research import (
+    AuctionRollingValidationConfig,
     AuctionStrategyComparisonConfig,
     ResearchSample,
     allocate_by_score,
     build_auction_research_samples,
     predict_linear_baseline,
+    run_auction_rolling_validation,
     run_auction_strategy_comparison,
     split_train_validation,
     train_linear_baseline,
@@ -203,6 +205,7 @@ def run_web_action(action: str, params: dict[str, Any], workspace: Path | None =
         "dashboard": action_dashboard,
         "scan_market": action_scan_market,
         "auction_compare": action_auction_compare,
+        "auction_rolling": action_auction_rolling,
         "factor_rank": action_factor_rank,
         "research_linear": action_research_linear,
         "auction_samples": action_auction_samples,
@@ -693,6 +696,59 @@ def action_auction_compare(params: dict[str, Any], workspace: Path) -> dict[str,
     }
 
 
+def action_auction_rolling(params: dict[str, Any], workspace: Path) -> dict[str, Any]:
+    config = AuctionRollingValidationConfig(
+        start=required_date(params, "start"),
+        end=required_date(params, "end"),
+        adjust=str_param(params, "adjust", "hfq"),
+        db_path=resolve_path(str_param(params, "db_path", "data/cache/market_scan.sqlite"), workspace),
+        output_dir=resolve_path(
+            str_param(params, "output_dir", "reports/generated/auction_rolling/web"),
+            workspace,
+        ),
+        public_summary_path=resolve_path(
+            str_param(params, "public_summary", "reports/summaries/web_auction_rolling.md"),
+            workspace,
+        ),
+        auction_provider=str_param(params, "auction_provider", "local_jingjia"),
+        top=int_param(params, "top", 30) or 30,
+        limit=int_param(params, "limit", None),
+        min_auction_scores=parse_optional_float_csv(
+            str_param(params, "min_auction_scores", "none,50,60,70")
+        ),
+        auction_score_weights=parse_float_csv(
+            str_param(params, "auction_score_weights", "0,0.10,0.15,0.25")
+        ),
+        window_months=int_param(params, "window_months", 1) or 1,
+    )
+
+    def auction_strategy_factory(
+        min_auction_score: float | None,
+        auction_score_weight: float,
+    ) -> ScreeningStrategy:
+        return strategy_variant_from_params(
+            params,
+            min_auction_score=min_auction_score,
+            auction_score_weight=auction_score_weight,
+        )
+
+    result = run_auction_rolling_validation(
+        config=config,
+        baseline_strategy=strategy_variant_from_params(
+            params,
+            min_auction_score=None,
+            auction_score_weight=0.0,
+        ),
+        auction_strategy_factory=auction_strategy_factory,
+        backtest_config=backtest_config_from_params(params),
+    )
+    return {
+        "rolling": result,
+        "public_summary": path_result(Path(result.public_summary_path)),
+        "output_dir": str(result.output_dir),
+    }
+
+
 def action_factor_rank(params: dict[str, Any], workspace: Path) -> dict[str, Any]:
     del workspace
     rows_json = json_text(params, "rows_json", [])
@@ -832,6 +888,19 @@ def build_signal_if_candidate(
 
 
 def strategy_from_params(params: Mapping[str, Any]) -> ScreeningStrategy:
+    return strategy_variant_from_params(
+        params,
+        min_auction_score=float_param(params, "min_auction_score", None),
+        auction_score_weight=float_param(params, "auction_score_weight", 0.15) or 0.15,
+    )
+
+
+def strategy_variant_from_params(
+    params: Mapping[str, Any],
+    *,
+    min_auction_score: float | None,
+    auction_score_weight: float,
+) -> ScreeningStrategy:
     return build_screening_strategy(
         str_param(params, "strategy_id", str_param(params, "strategy", "ma_volume_breakout")),
         short_window=int_param(params, "short_window", 5) or 5,
@@ -840,8 +909,8 @@ def strategy_from_params(params: Mapping[str, Any]) -> ScreeningStrategy:
         volume_window=int_param(params, "volume_window", 20) or 20,
         breakout_window=int_param(params, "breakout_window", 20) or 20,
         min_volume_ratio=float_param(params, "min_volume_ratio", 1.5) or 1.5,
-        min_auction_score=float_param(params, "min_auction_score", None),
-        auction_score_weight=float_param(params, "auction_score_weight", 0.15) or 0.15,
+        min_auction_score=min_auction_score,
+        auction_score_weight=auction_score_weight,
     )
 
 
@@ -988,6 +1057,37 @@ def float_param(params: Mapping[str, Any], key: str, default: float | None) -> f
     if value is None or value == "":
         return default
     return float(value)
+
+
+def parse_optional_float_csv(value: str) -> tuple[float | None, ...]:
+    parsed: list[float | None] = []
+    for item in csv_tokens(value):
+        if item.lower() in {"none", "null", "soft", "off"}:
+            parsed.append(None)
+        else:
+            parsed.append(float(item))
+    if not parsed:
+        raise ValueError("expected at least one min auction score")
+    return tuple(unique_preserve_order(parsed))
+
+
+def parse_float_csv(value: str) -> tuple[float, ...]:
+    parsed = [float(item) for item in csv_tokens(value)]
+    if not parsed:
+        raise ValueError("expected at least one auction score weight")
+    return tuple(unique_preserve_order(parsed))
+
+
+def csv_tokens(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def unique_preserve_order(values: Sequence[Any]) -> list[Any]:
+    unique: list[Any] = []
+    for value in values:
+        if value not in unique:
+            unique.append(value)
+    return unique
 
 
 def bool_param(params: Mapping[str, Any], key: str, default: bool = False) -> bool:
@@ -1611,6 +1711,29 @@ APP_HTML = r"""<!doctype html>
             </div>
           </form>
         </div>
+        <div class="panel">
+          <h2>竞价参数滚动验证</h2>
+          <form id="auctionRollingForm" class="grid">
+            <div class="grid three">
+              <label>开始日期<input name="start" value="2026-01-01"></label>
+              <label>结束日期<input name="end" value="2026-05-29"></label>
+              <label>DB 路径<input name="db_path" value="data/cache/market_scan.sqlite"></label>
+              <label>输出目录<input name="output_dir" value="reports/generated/auction_rolling/web"></label>
+              <label>公开汇总<input name="public_summary" value="reports/summaries/web_auction_rolling.md"></label>
+              <label>竞价 provider<input name="auction_provider" value="local_jingjia"></label>
+              <label>竞价阈值<input name="min_auction_scores" value="none,50,60,70"></label>
+              <label>竞价权重<input name="auction_score_weights" value="0,0.10,0.15,0.25"></label>
+              <label>窗口月份<input name="window_months" value="1"></label>
+              <label>Top<input name="top" value="30"></label>
+              <label>Limit<input name="limit" value=""></label>
+            </div>
+            <div data-common="strategy"></div>
+            <div data-common="backtest"></div>
+            <div class="row">
+              <button type="button" data-action="auction_rolling" data-form="auctionRollingForm">滚动验证</button>
+            </div>
+          </form>
+        </div>
       </section>
       <section id="research" class="advanced-only">
         <div class="panel">
@@ -1827,6 +1950,8 @@ APP_HTML = r"""<!doctype html>
         summary.innerHTML = analysisSummary(result);
       } else if (result.refresh) {
         summary.innerHTML = refreshSummary(result.refresh);
+      } else if (result.rolling) {
+        summary.innerHTML = rollingSummary(result);
       } else if (result.strategies) {
         summary.innerHTML = strategySummary(result.strategies);
       } else {
@@ -1894,6 +2019,21 @@ APP_HTML = r"""<!doctype html>
         ["止损", formatPrice(plan.stop_loss)],
         ["止盈", formatPrice(plan.take_profit)]
       ]) + details + lists);
+    }
+
+    function rollingSummary(result) {
+      const rolling = result.rolling || {};
+      const config = rolling.config || {};
+      const evaluations = rolling.evaluations || [];
+      const rows = evaluations.slice(0, 8).map((row) => `<tr><td>${escapeHtml(row.window_label || "")}</td><td>${row.min_auction_score ?? "none"}</td><td>${row.auction_score_weight ?? "-"}</td><td>${row.succeeded ?? "-"}</td><td>${formatPct(row.avg_delta_total_return)}</td></tr>`).join("");
+      const table = rows ? `<table><thead><tr><th>窗口</th><th>阈值</th><th>权重</th><th>成功样本</th><th>收益差</th></tr></thead><tbody>${rows}</tbody></table>` : "";
+      const link = result.public_summary && result.public_summary.url ? `<div class="summary-item"><strong>公开汇总</strong><a href="${result.public_summary.url}" target="_blank">${escapeHtml(result.public_summary.path || "打开")}</a></div>` : "";
+      return card("竞价滚动验证", grid([
+        ["区间", `${config.start || "-"} 至 ${config.end || "-"}`],
+        ["窗口数", (rolling.windows || []).length || "-"],
+        ["评估数", evaluations.length || "-"],
+        ["输出目录", result.output_dir || "-"]
+      ]) + link + table);
     }
 
     function analysisSummary(result) {

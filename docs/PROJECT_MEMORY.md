@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 21:15 CST（Asia/Shanghai）
+更新时间：2026-06-10 21:39 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -206,11 +206,10 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. P6-06：扩展竞价增强参数滚动验证，对不同月份、不同 `min_auction_score` 和 `auction_score_weight` 做对比，形成更稳健的参数建议。
-2. P6-02 完整全 A 股扫描仍是长期可恢复数据作业；需要时继续使用 `PYTHONPATH=src python -m gupiao.cli scan market --start 2023-06-10 --end 2026-06-10 --adjust hfq --db data/cache/market_scan.sqlite --output reports/generated/market_scan/latest --public-summary reports/summaries/latest_market_scan.md --top 30 --request-sleep 2.0 --retry-sleep 3 --request-timeout 60`。
-3. 原始行情、SQLite、逐股完整结果继续留在 `data/cache/` 和 `reports/generated/`，不提交 GitHub。
-4. 若全量扫描或竞价导入耗时过长或中断，重复运行同一命令即可复用 SQLite 缓存继续推进。
-5. 后续可继续扩展策略实验、报告模板、组合优化和模拟交易风控。
+1. P6-02 完整全 A 股扫描仍是长期可恢复数据作业；需要时继续使用 `PYTHONPATH=src python -m gupiao.cli scan market --start 2023-06-10 --end 2026-06-10 --adjust hfq --db data/cache/market_scan.sqlite --output reports/generated/market_scan/latest --public-summary reports/summaries/latest_market_scan.md --top 30 --request-sleep 2.0 --retry-sleep 3 --request-timeout 60`。
+2. 原始行情、SQLite、逐股完整结果继续留在 `data/cache/` 和 `reports/generated/`，不提交 GitHub。
+3. 若全量扫描或竞价导入耗时过长或中断，重复运行同一命令即可复用 SQLite 缓存继续推进。
+4. 当前无新的非长任务 `pending`；后续可继续扩展策略实验、报告模板、组合优化和模拟交易风控。
 
 每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交本地 Git。GitHub 推送恢复后再同步 `push_pending` 提交。
 
@@ -311,6 +310,17 @@ MVP 优先参考项目：
 - README 已补中文说明：早盘数据边界、买入时点、短线/中短线/中线周期含义、CLI 命令和 Web payload；`skills/stock-screening-strategies` 也记录早盘模式禁止使用当日完整日 K 的约束。
 - 本轮未启动全市场扫描、未重新下载行情、未写入或提交 SQLite/缓存大文件；只复用现有 `data/cache/market_scan.sqlite` 和 `local_jingjia` 画像做接口与测试验证。
 - 已执行并通过验证：`conda run -n agent env PYTHONPATH=src python -m compileall -q src tests`、`conda run -n agent env PYTHONPATH=src python -m unittest discover -s tests`（95 项通过）、`conda run -n agent env PYTHONPATH=src python -m gupiao.cli --version`（输出 `0.2.0`）。
+
+## 2026-06-10 21:39 CST 竞价参数滚动验证记忆
+
+- P6-06 已完成，新增 `PYTHONPATH=src python -m gupiao.cli research auction-rolling`，用于按自然月滚动验证多组 `min_auction_score` 与 `auction_score_weight`。
+- 新增 `AuctionRollingValidationConfig`、`AuctionRollingWindow`、`AuctionRollingEvaluation` 和 `run_auction_rolling_validation`；执行时复用现有 `run_auction_strategy_comparison`，每个窗口和参数组合的逐股明细写入 `reports/generated/auction_rolling/...`。
+- 默认参数网格：`min_auction_scores=(None, 50, 60, 70)`，`auction_score_weights=(0, 0.10, 0.15, 0.25)`；`None + 0` 可作为软排序/无硬过滤控制组。
+- 公开汇总 `reports/summaries/latest_auction_rolling.md` 只包含参数稳定性排名、正向窗口比例、成功样本数、平均收益差和风险提示，不包含逐股原始 OHLC 或大体积结果。
+- Web 专业模式新增 `auction_rolling` action 和“竞价参数滚动验证”表单；普通模式不增加复杂参数，继续保持早盘选股和买卖计划为主。
+- README 已补 CLI 命令、Web payload、产物边界和推荐工作流；P6-06 完成后当前无新的非长任务 `pending`，仅 P6-02 全市场完整扫描仍是可恢复长期作业。
+- 本轮没有启动真实全市场滚动验证，只使用单元测试小样本验证功能路径，避免生成大文件或消耗远端行情接口。
+- 已执行并通过验证：`conda run -n agent env PYTHONPATH=src python -m compileall -q src tests`、`conda run -n agent env PYTHONPATH=src python -m unittest discover -s tests`（99 项通过）、`conda run -n agent env PYTHONPATH=src python -m gupiao.cli --version`（输出 `0.2.0`）、`conda run -n agent env PYTHONPATH=src python -m gupiao.cli research auction-rolling --help`。
 
 ## 注意事项
 

@@ -61,7 +61,7 @@ A 股选股、买卖点分析、竞价数据增强与量化研究辅助工具。
 - 轻量 ML 基线：支持训练/验证切分、线性基线预测和样本外评分。
 - 组合权重研究：支持按预测评分选 Top N，并做权重上限控制。
 - 竞价增强近期验证：已用 `2026-01-01` 至 `2026-05-29` 日 K 和 `2026-05` 本地竞价画像完成一次 baseline vs auction 对比。
-- 后续滚动验证：任务清单已规划 P6-06，对不同月份和竞价参数做滚动对比，形成更稳健的参数建议。
+- 竞价参数滚动验证：`research auction-rolling` 可按月份对不同 `min_auction_score` 和 `auction_score_weight` 做滚动对比，形成更稳健的参数建议。
 
 ### 项目规划、skills 与自动化
 
@@ -97,6 +97,7 @@ A 股选股、买卖点分析、竞价数据增强与量化研究辅助工具。
 | `web serve` | 启动本地交互式 Web 工作台 | 浏览器页面 |
 | `scan market` | 运行可恢复全市场扫描 | JSONL + Markdown 汇总 |
 | `research auction-compare` | 对比纯 K 线和竞价增强策略 | JSONL + Markdown 汇总 |
+| `research auction-rolling` | 多月份滚动验证竞价阈值和权重 | JSONL + Markdown 汇总 |
 
 ### 目前不做的事情
 
@@ -501,7 +502,25 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli web serve --host 127.
 }
 ```
 
-早盘主流程 action 为 `morning_screen` 和 `trade_plan`；收盘后研究类 action（`quick_analysis`、`screen_breakout`、`signal_breakout`、`backtest_breakout`、`report_breakout`、`dashboard`）继续保留，并支持 `strategy_id`、`as_of`、`lookback`、`auction_provider`。Web 表单已经提供普通模式和专业模式两套入口。
+```json
+{
+  "action": "auction_rolling",
+  "params": {
+    "db_path": "data/cache/market_scan.sqlite",
+    "start": "2026-01-01",
+    "end": "2026-05-29",
+    "auction_provider": "local_jingjia",
+    "min_auction_scores": "none,50,60,70",
+    "auction_score_weights": "0,0.10,0.15,0.25",
+    "window_months": 1,
+    "limit": 500,
+    "output_dir": "reports/generated/auction_rolling/web",
+    "public_summary": "reports/summaries/web_auction_rolling.md"
+  }
+}
+```
+
+早盘主流程 action 为 `morning_screen` 和 `trade_plan`；竞价参数研究 action 为 `auction_compare` 和 `auction_rolling`；收盘后研究类 action（`quick_analysis`、`screen_breakout`、`signal_breakout`、`backtest_breakout`、`report_breakout`、`dashboard`）继续保留，并支持 `strategy_id`、`as_of`、`lookback`、`auction_provider`。Web 表单已经提供普通模式和专业模式两套入口。
 
 ### 导入本地日 K 缓存
 
@@ -651,6 +670,30 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli research auction-comp
 - `reports/summaries/latest_auction_validation.md`：可提交的小型汇总，用来记录本轮 skill 迭代证据。
 - 若汇总显示竞价硬过滤没有稳定改善，应先把竞价作为排序和解释辅助，而不是直接提升为默认强过滤。
 
+### 滚动验证竞价参数
+
+单窗口对比之后，可以按自然月滚动验证多组竞价阈值和权重，观察参数是否在不同月份都稳定：
+
+```bash
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli research auction-rolling \
+  --start 2026-01-01 \
+  --end 2026-05-29 \
+  --db data/cache/market_scan.sqlite \
+  --auction-provider local_jingjia \
+  --min-auction-scores none,50,60,70 \
+  --auction-score-weights 0,0.10,0.15,0.25 \
+  --window-months 1 \
+  --output reports/generated/auction_rolling/latest \
+  --public-summary reports/summaries/latest_auction_rolling.md \
+  --top 30
+```
+
+产物规则：
+
+- `reports/generated/auction_rolling/latest/`：各月份、各参数组合的逐股完整结果，不提交。
+- `reports/summaries/latest_auction_rolling.md`：可提交的小型汇总，包含参数稳定性排名、正向窗口比例和风险提示。
+- 如果最佳参数的平均收益差为正、且正向窗口比例达到 60% 以上，只作为下一轮实验配置；普通模式仍不默认启用竞价硬过滤。
+
 ## 推荐工作流
 
 1. 安装开发依赖和数据依赖。
@@ -668,7 +711,8 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli research auction-comp
 13. 用 `screen candidates` 从本地缓存批量选股。
 14. 用 `scan market` 批量扫描全 A 股，并提交小型汇总。
 15. 用 `research auction-compare` 对比竞价增强策略并更新 skill 阈值建议。
-16. 扩展策略、指标、因子或报告模板，并补充测试。
+16. 用 `research auction-rolling` 滚动验证不同竞价阈值和权重。
+17. 扩展策略、指标、因子或报告模板，并补充测试。
 
 ## 项目文档
 
