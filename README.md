@@ -153,6 +153,37 @@ PYTHONPATH=src python -m gupiao.cli report breakout --bars data/000001_daily.jso
 
 报告内容包括候选股、买卖点计划、回测指标、交易明细、风险提示和回测假设。
 
+### 导入本地日 K 缓存
+
+如果已有按交易日拆分的全市场日 K CSV，例如 `cache/daily_k/market_data_cache/market_YYYY-MM-DD.csv`，可以先导入 SQLite，减少 AKShare 远端断连影响：
+
+```bash
+PYTHONPATH=src python -m gupiao.cli data import-daily-cache \
+  --source cache/daily_k/market_data_cache \
+  --db data/cache/market_scan.sqlite \
+  --start 2023-06-10 \
+  --end 2026-04-23 \
+  --adjust hfq \
+  --conflict ignore
+```
+
+建议先 dry-run 统计可导入规模：
+
+```bash
+PYTHONPATH=src python -m gupiao.cli data import-daily-cache \
+  --source cache/daily_k/market_data_cache \
+  --start 2023-06-10 \
+  --end 2026-04-23 \
+  --dry-run
+```
+
+导入规则：
+
+- 默认 `--conflict ignore`，已有 AKShare 行不会被本地 CSV 覆盖。
+- 新格式 CSV 使用真实 `成交量`；老格式缺少成交量时用 `amount / close` 估算，并把 provider 标记为 `local_daily_k_estimated_volume`。
+- 本地日 K 当前覆盖到 `2026-04-23`；若扫描结束日晚于缓存最新日，系统不会把半截缓存误当完整数据。
+- `cache/jingjia/*.rar` 是集合竞价快照压缩包，字段粒度不同，暂保留为原始数据源，后续应导入到专门的竞价表，不混入日 K 表。
+
 ### 运行全 A 股市场扫描
 
 需要先安装 `akshare`：

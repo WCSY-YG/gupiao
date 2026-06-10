@@ -219,6 +219,16 @@ MVP 优先参考项目：
 - 前序全量尝试主要失败模式为 AKShare 远端断连和单只请求长时间挂起；本轮新增 `scan market --request-timeout`，默认 60 秒，配合 3 次重试和请求节流继续推进。
 - 当前 GitHub 同步策略不变：代码、文档和小型 Markdown 汇总可本地提交；原始行情、SQLite、逐股 JSONL/CSV 和完整生成目录不提交；推送失败只记录 `push_pending`，不停止任务。
 
+## 2026-06-10 16:16 CST 本地缓存整合记忆
+
+- 用户已放入本地数据目录：`cache/daily_k/market_data_cache` 为按交易日拆分的全市场日 K CSV，`cache/jingjia` 为集合竞价快照 RAR 月包。
+- 新增 `PYTHONPATH=src python -m gupiao.cli data import-daily-cache`，支持按日期范围导入本地日 K、`--dry-run` 统计、`--conflict ignore|replace` 冲突策略。
+- 已导入 `2023-06-10` 至 `2026-04-23` 范围的本地日 K：读取 694 个交易日文件、3,523,364 行，3,523,329 行可导入，写入 2,810,490 条新日线；35 行无效记录跳过。
+- 导入后 `data/cache/market_scan.sqlite` 共有 5,206 只股票、3,555,670 条日线，日期范围为 `2023-06-12` 至 `2026-06-10`；其中 `akshare` 745,180 条、`local_daily_k_estimated_volume` 2,798,064 条、`local_daily_k` 12,426 条。
+- `daily_k` 老格式缺少真实成交量，导入器用 `amount / close` 估算并标记 provider；后续使用放量策略时要把该估算风险写进报告。
+- `cache/jingjia/*.rar` 已确认可用 `unrar` 读取，字段包含 `security_id, md_date, md_time, pre_close, last, open, total_volume_trade, total_value_trade, bid/ask` 等集合竞价快照；当前不混入日 K 表，后续应新建竞价专用表或按需抽取特征。
+- 扫描缓存逻辑已加完整性保护：只有缓存最新交易日覆盖扫描 `--end` 时才直接复用，避免本地日 K 只到 `2026-04-23` 却被误用于 `2026-06-10` 全区间扫描。
+
 ## 注意事项
 
 - 当前项目定位为研究与辅助分析工具，不默认接入真实交易。

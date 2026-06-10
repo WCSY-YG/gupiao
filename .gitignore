@@ -17,6 +17,7 @@ venv/
 env/
 
 # Local data and generated reports
+cache/
 data/raw/
 data/processed/
 data/cache/

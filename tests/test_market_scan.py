@@ -100,11 +100,12 @@ class MarketScanTest(TestCase):
         with TemporaryDirectory() as directory:
             db_path = f"{directory}/scan.sqlite"
             store = SQLiteStore(db_path)
-            store.upsert_daily_bars(breakout_bars())
+            cached_bars = breakout_bars()
+            store.upsert_daily_bars(cached_bars)
             provider = FakeMarketProvider({})
             config = MarketScanConfig(
                 start=date(2026, 6, 1),
-                end=date(2026, 6, 20),
+                end=max(bar.trade_date for bar in cached_bars),
                 db_path=db_path,
                 output_dir=f"{directory}/generated",
                 public_summary_path=f"{directory}/summary.md",
@@ -123,6 +124,35 @@ class MarketScanTest(TestCase):
             self.assertEqual(provider.fetch_calls, [])
             self.assertEqual(result.cached, 1)
             self.assertEqual(result.fetched, 0)
+            self.assertEqual(result.results[0].status, "success")
+
+    def test_market_scan_fetches_when_cached_bars_do_not_cover_end(self) -> None:
+        with TemporaryDirectory() as directory:
+            db_path = f"{directory}/scan.sqlite"
+            store = SQLiteStore(db_path)
+            store.upsert_daily_bars(breakout_bars()[:5])
+            provider = FakeMarketProvider({"000001": breakout_bars()})
+            config = MarketScanConfig(
+                start=date(2026, 6, 1),
+                end=date(2026, 6, 20),
+                db_path=db_path,
+                output_dir=f"{directory}/generated",
+                public_summary_path=f"{directory}/summary.md",
+                limit=1,
+                retry_sleep_seconds=0,
+            )
+
+            result = run_market_scan(
+                provider,
+                config=config,
+                strategy=small_strategy(),
+                backtest_config=BacktestConfig(atr_window=3, max_holding_bars=2),
+                sleep=lambda _: None,
+            )
+
+            self.assertEqual(provider.fetch_calls, ["000001"])
+            self.assertEqual(result.cached, 0)
+            self.assertEqual(result.fetched, 1)
             self.assertEqual(result.results[0].status, "success")
 
     def test_market_scan_sleeps_after_external_fetch_only(self) -> None:

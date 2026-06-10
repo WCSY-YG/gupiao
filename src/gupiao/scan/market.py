@@ -159,7 +159,7 @@ def scan_instrument(
             end=config.end,
             adjust=config.adjust,
         )
-        if cached_bars:
+        if cached_bars and cached_bars_cover_end(cached_bars, config.end):
             bars = cached_bars
             data_source = "cached"
         else:
@@ -279,6 +279,10 @@ def fetch_daily_bars_with_retries(
     if last_error is not None:
         raise last_error
     return []
+
+
+def cached_bars_cover_end(bars: Sequence[DailyBar], end: date) -> bool:
+    return max(bar.trade_date for bar in bars) >= end
 
 
 def fetch_daily_bars_once(

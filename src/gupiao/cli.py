@@ -11,7 +11,13 @@ from pathlib import Path
 from typing import Any
 
 from gupiao.backtest import BacktestConfig, run_breakout_backtest
-from gupiao.data import AkshareProvider, DailyBar, SQLiteStore
+from gupiao.data import (
+    AkshareProvider,
+    DailyBar,
+    LocalDailyCacheImportConfig,
+    SQLiteStore,
+    import_local_daily_cache,
+)
 from gupiao.reports import build_markdown_report, write_markdown_report
 from gupiao.scan import DEFAULT_SCAN_END, DEFAULT_SCAN_START, MarketScanConfig, run_market_scan
 from gupiao.signals import build_breakout_signal
@@ -58,6 +64,21 @@ def build_parser() -> argparse.ArgumentParser:
     update_daily_parser.add_argument("--adjust", choices=["raw", "qfq", "hfq"], default="hfq")
     update_daily_parser.add_argument("--db", default="data/gupiao.sqlite")
     update_daily_parser.set_defaults(handler=handle_data_update_daily)
+
+    import_daily_cache = data_subparsers.add_parser(
+        "import-daily-cache",
+        help="Import local market_YYYY-MM-DD.csv daily K-line cache into SQLite.",
+    )
+    import_daily_cache.add_argument("--source", default="cache/daily_k/market_data_cache")
+    import_daily_cache.add_argument("--db", default="data/cache/market_scan.sqlite")
+    import_daily_cache.add_argument("--start", type=parse_cli_date, default=None)
+    import_daily_cache.add_argument("--end", type=parse_cli_date, default=None)
+    import_daily_cache.add_argument("--adjust", default="hfq")
+    import_daily_cache.add_argument("--provider", default="local_daily_k")
+    import_daily_cache.add_argument("--conflict", choices=["ignore", "replace"], default="ignore")
+    import_daily_cache.add_argument("--limit-files", type=positive_int, default=None)
+    import_daily_cache.add_argument("--dry-run", action="store_true")
+    import_daily_cache.set_defaults(handler=handle_data_import_daily_cache)
 
     screen_parser = subparsers.add_parser("screen", help="Run stock screening tasks.")
     screen_subparsers = screen_parser.add_subparsers(dest="screen_command", required=True)
@@ -164,6 +185,23 @@ def handle_data_update_daily(args: argparse.Namespace) -> None:
     store = SQLiteStore(args.db)
     rows = store.upsert_daily_bars(bars)
     write_json_object({"db": args.db, "rows": rows, "symbol": args.symbol})
+
+
+def handle_data_import_daily_cache(args: argparse.Namespace) -> None:
+    result = import_local_daily_cache(
+        LocalDailyCacheImportConfig(
+            source_dir=args.source,
+            db_path=args.db,
+            start=args.start,
+            end=args.end,
+            adjust=args.adjust,
+            provider=args.provider,
+            conflict=args.conflict,
+            limit_files=args.limit_files,
+            dry_run=args.dry_run,
+        )
+    )
+    write_json_object(result)
 
 
 def handle_screen_breakout(args: argparse.Namespace) -> None:
