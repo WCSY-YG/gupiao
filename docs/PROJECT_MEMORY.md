@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 10:00 CST（Asia/Shanghai）
+更新时间：2026-06-10 10:03 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -139,6 +139,13 @@
 - 输出 `FactorScore`，包含综合得分、分项得分和原始因子。
 - 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 41 项。
 
+已经完成 ML 评分与组合优化研究脚手架：
+
+- `split_train_validation` 提供样本外验证切分。
+- `train_linear_baseline` / `predict_linear_baseline` 提供无外部依赖的线性基线评分。
+- `allocate_by_score` 支持按预测评分生成 top N 组合权重并做权重上限控制。
+- 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 45 项。
+
 ## 同步状态
 
 - `push_pending`：GitHub 推送凭据暂不可用，按用户最新指令先继续推进任务。
@@ -186,11 +193,11 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P5-02`：探索 ML 评分与组合优化。
-2. 后续：组合优化、模拟交易风控、更多数据源适配。
-3. 等 GitHub 凭据恢复后同步所有 `push_pending` 提交。
-4. 继续补充真实数据样例、策略实验和报告模板。
-5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
+1. 全部当前任务清单已完成。
+2. 等 GitHub 凭据恢复后同步所有 `push_pending` 提交。
+3. 后续可继续补充真实数据样例、策略实验和报告模板。
+4. 后续可扩展组合优化、模拟交易风控、更多数据源适配。
+5. 当前 MVP 已跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
 
 每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交本地 Git。GitHub 推送恢复后再同步 `push_pending` 提交。
 

@@ -1,6 +1,6 @@
 # 项目任务清单
 
-更新时间：2026-06-10 10:00 CST
+更新时间：2026-06-10 10:03 CST
 
 本文档是项目自动推进的状态源。每一轮任务开始前先读取本文件；每完成一个任务，必须更新状态并本地提交。GitHub 推送若失败，记录 `push_pending` 后继续推进。
 
@@ -16,7 +16,7 @@
 ## 当前指针
 
 - 当前阶段：Phase 5。
-- 下一项任务：`P5-02` 探索 ML 评分与组合优化。
+- 下一项任务：全部计划任务已完成；等待 GitHub 凭据恢复后同步 `push_pending`。
 - 推进规则：从上到下选择第一个 `pending` 且依赖已完成的任务。
 - GitHub 更新规则：每完成一个任务，更新本清单和相关项目记忆，执行一次本地 commit；远端推送失败时记录 `push_pending`，不阻塞后续任务。
 
@@ -43,7 +43,7 @@
 | P4-01 | done | Phase 4 | 提供 CLI 任务入口 | 支持数据更新、选股、信号、回测、报告命令 | P3-03 |
 | P4-02 | done | Phase 4 | 搭建 Web Dashboard 初版 | 可浏览候选池、K 线指标、回测图和报告摘要 | P4-01 |
 | P5-01 | done | Phase 5 | 扩展多因子研究 | 价值、质量、成长、动量、波动率、流动性综合打分 | P4-02 |
-| P5-02 | pending | Phase 5 | 探索 ML 评分与组合优化 | 有实验脚手架、样本外验证和风险说明 | P5-01 |
+| P5-02 | done | Phase 5 | 探索 ML 评分与组合优化 | 有实验脚手架、样本外验证和风险说明 | P5-01 |
 
 ## 完成记录
 
@@ -64,3 +64,4 @@
 - 2026-06-10 09:50 CST：完成 CLI 任务入口，支持数据更新、选股、信号、回测和报告命令；已通过 `compileall`、CLI version、`unittest` 37 项；GitHub 远端同步继续记为 `push_pending`。
 - 2026-06-10 09:56 CST：完成静态 Web Dashboard 初版，支持 KPI、候选、买卖点、权益曲线 SVG、交易明细和风险提示；已通过 `compileall`、CLI version、`unittest` 39 项；GitHub 远端同步继续记为 `push_pending`。
 - 2026-06-10 10:00 CST：完成多因子研究工具，支持价值、质量、成长、动量、波动率、流动性加权归一化排名；已通过 `compileall`、CLI version、`unittest` 41 项；GitHub 远端同步继续记为 `push_pending`。
+- 2026-06-10 10:03 CST：完成 ML 评分与组合优化研究脚手架，支持训练/验证切分、线性基线预测和按评分分配组合权重；已通过 `compileall`、CLI version、`unittest` 45 项；GitHub 远端同步继续记为 `push_pending`。
