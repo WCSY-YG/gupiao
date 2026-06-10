@@ -1,11 +1,17 @@
+from contextlib import redirect_stdout
+from io import StringIO
+from unittest import TestCase
+
 from gupiao import __version__
 from gupiao.cli import main
 
 
-def test_package_version() -> None:
-    assert __version__ == "0.1.0"
+class PackageImportTest(TestCase):
+    def test_package_version(self) -> None:
+        self.assertEqual(__version__, "0.1.0")
 
-
-def test_cli_version(capsys) -> None:
-    assert main(["--version"]) == 0
-    assert capsys.readouterr().out.strip() == "0.1.0"
+    def test_cli_version(self) -> None:
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            self.assertEqual(main(["--version"]), 0)
+        self.assertEqual(stdout.getvalue().strip(), "0.1.0")

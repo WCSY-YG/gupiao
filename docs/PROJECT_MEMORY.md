@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 02:34 CST（Asia/Shanghai）
+更新时间：2026-06-10 09:12 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -55,6 +55,18 @@
 - `docs/DEVELOPMENT.md`：环境安装、测试、格式化、类型检查和打包命令。
 - 验证：`pyproject.toml` 可解析，`PYTHONPATH=src python -m compileall -q src tests` 通过，`PYTHONPATH=src python -m gupiao.cli --version` 输出 `0.1.0`。
 
+已经完成股票列表与日线数据接入接口：
+
+- `AkshareProvider` 懒加载 AKShare，支持 A 股股票列表和日线行情映射。
+- CLI 支持 `gupiao data instruments --limit 10` 和 `gupiao data daily 000001 --start YYYY-MM-DD --end YYYY-MM-DD --limit 5`，输出 JSON Lines。
+- 新增不依赖 AKShare/pandas 的 provider 映射、日期解析、交易所推断和 CLI helper 测试。
+- 验证：`PYTHONPATH=src python -m compileall -q src tests` 通过，`PYTHONPATH=src python -m gupiao.cli --version` 输出 `0.1.0`，`PYTHONPATH=src python -m unittest discover -s tests` 通过 7 项；`pytest` 与 AKShare 当前未安装，真实 AKShare smoke test 跳过。
+
+## 同步状态
+
+- `push_pending`：GitHub 推送凭据暂不可用，按用户最新指令先继续推进任务。
+- 待推送本地提交起点：`85225e2 build: add python project tooling` 及其后的本地提交。
+
 ## 当前调研结论
 
 MVP 优先参考项目：
@@ -97,13 +109,13 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P1-03`：实现股票列表与日线数据接入接口。
-2. `P1-04`：设计并实现本地数据存储。
+1. `P1-04`：设计并实现本地数据存储。
+2. `P1-05`：加入数据质量检查。
 3. `P2-02`：实现第一个完整策略：均线多头 + 放量突破 + ATR 止损。
 4. `P3-01`：跑通单策略回测闭环。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
 
-每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交、推送到 GitHub。
+每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交本地 Git。GitHub 推送恢复后再同步 `push_pending` 提交。
 
 ## 注意事项
 
