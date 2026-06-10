@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 11:20 CST（Asia/Shanghai）
+更新时间：2026-06-10 11:24 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -159,8 +159,8 @@
 
 ## 同步状态
 
-- GitHub 推送已经恢复过一次，README 中文使用说明提交已成功推送到 `main`。
-- 本轮 Phase 6 代码、文档和 smoke 小汇总完成后继续本地提交并尝试推送。
+- GitHub 推送已恢复；README 中文使用说明提交已成功推送到 `main`。
+- 本轮 Phase 6 代码、文档和 smoke 小汇总已提交并推送：`1942e2a feat: add recoverable market scan workflow`。
 - 若后续 GitHub push 是网络问题，重试；若是 SSH/403 权限问题，记录 `push_pending` 并继续任务。
 
 ## 当前调研结论

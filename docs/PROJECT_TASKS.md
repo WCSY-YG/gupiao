@@ -1,6 +1,6 @@
 # 项目任务清单
 
-更新时间：2026-06-10 11:20 CST
+更新时间：2026-06-10 11:24 CST
 
 本文档是项目自动推进的状态源。每一轮任务开始前先读取本文件；每完成一个任务，必须更新状态并本地提交。GitHub 推送若失败，记录 `push_pending` 后继续推进。
 
@@ -68,3 +68,4 @@
 - 2026-06-10 10:00 CST：完成多因子研究工具，支持价值、质量、成长、动量、波动率、流动性加权归一化排名；已通过 `compileall`、CLI version、`unittest` 41 项；GitHub 远端同步继续记为 `push_pending`。
 - 2026-06-10 10:03 CST：完成 ML 评分与组合优化研究脚手架，支持训练/验证切分、线性基线预测和按评分分配组合权重；已通过 `compileall`、CLI version、`unittest` 45 项；GitHub 远端同步继续记为 `push_pending`。
 - 2026-06-10 11:20 CST：完成可恢复全 A 股市场扫描入口，新增 `scan market`、SQLite 缓存复用、逐股失败不中断、轻量公开汇总和 5 项扫描测试；已通过 `compileall`、CLI help、`unittest` 50 项；已安装 AKShare 并完成 3 只股票真实 smoke test，生成 `reports/summaries/smoke_market_scan.md`。
+- 2026-06-10 11:24 CST：本轮 Phase 6 提交 `1942e2a feat: add recoverable market scan workflow` 已成功推送到 GitHub `main`；下一项仍为 P6-02 完整全 A 股扫描。
