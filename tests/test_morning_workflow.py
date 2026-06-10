@@ -61,6 +61,10 @@ class MorningWorkflowTest(TestCase):
             self.assertEqual(row.trade_plan.entry_date, trade_date)
             self.assertIn("09:25", row.trade_plan.entry_timing)
             self.assertEqual(row.trade_plan.entry_price_source, "auction_indicative_price")
+            self.assertAlmostEqual(row.trade_plan.stop_loss or 0.0, 12.2555)
+            self.assertTrue(
+                any("未复权口径" in note for note in row.trade_plan.risk_notes)
+            )
 
     def test_short_term_requires_auction_but_mid_term_can_continue_without_it(self) -> None:
         with TemporaryDirectory() as directory:

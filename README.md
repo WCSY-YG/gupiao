@@ -321,6 +321,7 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli screen candidates \
 - 日 K：只使用 `trade_date < D` 的历史日 K，不能使用 D 日收盘价、最高价、最低价或成交量。
 - 竞价：可使用 D 日 `auction_profiles`，包括参考价、缺口、竞价量比、区间波动、委买委卖不平衡和竞价强度分。
 - 入场：买卖计划默认说明为 09:25 后确认，09:30 附近按开盘价或可成交价执行；回测使用 D 日开盘价加滑点。
+- 价格口径：本地竞价价通常是未复权价格；如果日 K 使用 `hfq/qfq`，买卖计划会用百分比兜底计算止损/止盈，避免把复权 ATR 和未复权竞价价混用。
 
 批量早盘选股：
 

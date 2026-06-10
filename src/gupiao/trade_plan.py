@@ -155,15 +155,19 @@ def build_trade_plan(
 
     stop_loss = take_profit = reduce_price = None
     if entry_price is not None and entry_price > 0:
+        scale_mismatch = price_scale_mismatch(price_source, latest)
         stop_distance = stop_distance_for_bars(
             ordered,
             entry_price=entry_price,
             stop_atr_multiple=profile.stop_atr_multiple,
             fallback_stop_pct=profile.fallback_stop_pct,
+            use_atr=not scale_mismatch,
         )
         stop_loss = round(entry_price - stop_distance, 4)
         take_profit = round(entry_price + stop_distance * profile.take_profit_r_multiple, 4)
         reduce_price = round(entry_price + stop_distance, 4)
+    else:
+        scale_mismatch = False
 
     return TradePlan(
         symbol=candidate.symbol,
@@ -185,7 +189,12 @@ def build_trade_plan(
         buy_conditions=buy_conditions(decision_time, profile, auction_profile),
         avoid_conditions=avoid_conditions(decision_time, profile, auction_profile),
         sell_rules=sell_rules(profile),
-        risk_notes=risk_notes(decision_time, profile),
+        risk_notes=risk_notes(
+            decision_time,
+            profile,
+            price_scale_mismatch=scale_mismatch,
+            bars_adjust=latest.adjust if latest is not None else None,
+        ),
     )
 
 
@@ -195,11 +204,20 @@ def stop_distance_for_bars(
     entry_price: float,
     stop_atr_multiple: float,
     fallback_stop_pct: float,
+    use_atr: bool = True,
 ) -> float:
-    latest_atr = latest_available(atr(bars, window=14)) if bars else None
+    latest_atr = latest_available(atr(bars, window=14)) if bars and use_atr else None
     if latest_atr is not None and latest_atr > 0:
         return max(latest_atr * stop_atr_multiple, entry_price * fallback_stop_pct * 0.5)
     return entry_price * fallback_stop_pct
+
+
+def price_scale_mismatch(entry_price_source: str, latest_bar: DailyBar | None) -> bool:
+    if latest_bar is None:
+        return False
+    if entry_price_source != "auction_indicative_price":
+        return False
+    return latest_bar.adjust not in {None, "", "raw"}
 
 
 def latest_available(values: Sequence[float | None]) -> float | None:
@@ -268,13 +286,23 @@ def sell_rules(profile: HorizonProfile) -> tuple[str, ...]:
     )
 
 
-def risk_notes(decision_time: str, profile: HorizonProfile) -> tuple[str, ...]:
+def risk_notes(
+    decision_time: str,
+    profile: HorizonProfile,
+    *,
+    price_scale_mismatch: bool = False,
+    bars_adjust: str | None = None,
+) -> tuple[str, ...]:
     notes = [
         "该计划是研究和决策辅助，不构成投资建议",
         "回测成交价会加入手续费和滑点，实盘成交可能不同",
     ]
     if decision_time == MORNING_AUCTION:
         notes.append("早盘计划生成时不知道当日收盘价，禁止使用当日日K收盘信息")
+    if price_scale_mismatch:
+        notes.append(
+            f"竞价参考价是未复权口径，日K为 {bars_adjust} 口径，止损止盈已改用百分比兜底"
+        )
     if profile.auction_importance == "low":
         notes.append("中线策略以趋势质量为主，竞价只作为弱确认信号")
     return tuple(notes)

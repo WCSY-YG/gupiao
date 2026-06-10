@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 21:39 CST（Asia/Shanghai）
+更新时间：2026-06-10 21:49 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -321,6 +321,14 @@ MVP 优先参考项目：
 - README 已补 CLI 命令、Web payload、产物边界和推荐工作流；P6-06 完成后当前无新的非长任务 `pending`，仅 P6-02 全市场完整扫描仍是可恢复长期作业。
 - 本轮没有启动真实全市场滚动验证，只使用单元测试小样本验证功能路径，避免生成大文件或消耗远端行情接口。
 - 已执行并通过验证：`conda run -n agent env PYTHONPATH=src python -m compileall -q src tests`、`conda run -n agent env PYTHONPATH=src python -m unittest discover -s tests`（99 项通过）、`conda run -n agent env PYTHONPATH=src python -m gupiao.cli --version`（输出 `0.2.0`）、`conda run -n agent env PYTHONPATH=src python -m gupiao.cli research auction-rolling --help`。
+
+## 2026-06-10 21:49 CST 早盘计划价格口径修正记忆
+
+- 目标完成审计时用真实缓存执行 `screen morning --trade-date 2026-05-29 --horizon short_term --limit 20`，命中候选 `000027`；该 smoke 暴露一个风险：竞价参考价是未复权价格，而默认日 K 为 `hfq` 复权价格，若用复权 ATR 直接计算止损/止盈，会产生明显不合理的交易计划。
+- 已修正 `build_trade_plan`：当 `entry_price_source="auction_indicative_price"` 且最新日 K `adjust` 不是 `raw` 时，不使用 ATR 距离，改用周期配置的百分比止损/止盈兜底。
+- 早盘计划现在会在 `risk_notes` 中说明“竞价参考价是未复权口径，日K为 hfq/qfq 口径，止损止盈已改用百分比兜底”；README 早盘数据边界也增加了价格口径说明。
+- 已补测试：`tests/test_morning_workflow.py` 断言复权日 K + 竞价价时止损使用百分比兜底并输出风险提示。
+- 已验证：`conda run -n agent env PYTHONPATH=src python -m compileall -q src tests`、`conda run -n agent env PYTHONPATH=src python -m unittest discover -s tests`（99 项通过）、`conda run -n agent env PYTHONPATH=src python -m gupiao.cli --version`（输出 `0.2.0`）；真实缓存 `screen morning` smoke 中 `000027` 计划已输出参考买入 7.98、止损 7.7007、减仓 8.2593、止盈 8.399，价格口径恢复合理；`research auction-rolling` 小型 smoke 写入 `/tmp/gupiao_goal_audit/auction_rolling.md`，1 个窗口、4 个参数组合。
 
 ## 注意事项
 

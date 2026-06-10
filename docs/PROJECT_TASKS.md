@@ -1,6 +1,6 @@
 # 项目任务清单
 
-更新时间：2026-06-10 21:39 CST
+更新时间：2026-06-10 21:49 CST
 
 本文档是项目自动推进的状态源。每一轮任务开始前先读取本文件；每完成一个任务，必须更新状态并本地提交。GitHub 推送若失败，记录 `push_pending` 后继续推进。
 
@@ -54,6 +54,7 @@
 | P6-08 | done | Phase 6 | 增加市场日 K 缓存缺口检测与补齐入口 | 支持查看 SQLite 最新日 K 缺口、dry-run 预览缺失交易日，并自动拉取补齐到 AKShare 最近可用交易日 | P6-01 |
 | P6-09 | done | Phase 6 | 重构 Web 工作台普通/专业模式体验 | 默认普通模式使用 SQLite 缓存给出可用结果，专业模式保留完整参数，结果区显示摘要和原始 JSON | P6-07 |
 | P6-10 | done | Phase 6 | 早盘优先的多周期选股与买卖计划重构 | 默认早盘竞价决策，支持短线/中短线/中线策略、严格时间边界、买卖计划、早盘回测和 Web/CLI 入口 | P6-05, P6-09 |
+| P6-11 | done | Phase 6 | 修正早盘买卖计划价格口径风险 | 当入场价来自未复权竞价画像且日 K 为复权口径时，止损/止盈改用百分比兜底并输出风险提示 | P6-10 |
 
 ## 完成记录
 
@@ -89,3 +90,4 @@
 - 2026-06-10 19:44 CST：按用户反馈重构 Web 工作台体验，新增默认普通模式首页（查看缓存、批量选股、单股分析、查看日K缺口），完整参数收进专业模式；修复默认 `/tmp/gupiao_web_bars.jsonl` 不存在导致按钮无结果的问题，改为默认使用 `data/cache/market_scan.sqlite`；结果区新增摘要卡片和 Top 候选表，原始 JSON 保留；已通过 `compileall`、`unittest` 90 项、HTTP `/api/health` 与 `/api/run data_status` 验证。
 - 2026-06-10 21:15 CST：完成早盘优先的多周期选股与买卖计划重构，新增 `screen morning`、`plan trade`、`backtest morning`，短线强依赖竞价，中短线以量价结构为主，中线弱化竞价；早盘模式只使用交易日之前的日 K 与交易日当天竞价画像，回测用交易日开盘价加滑点成交；Web 普通模式新增早盘选股和买卖计划摘要；已通过 `compileall`、`unittest` 95 项和 CLI version 验证。
 - 2026-06-10 21:39 CST：完成 P6-06 竞价参数滚动验证，新增 `research auction-rolling`、`AuctionRollingValidationConfig`、按自然月切分窗口、竞价阈值/权重参数网格、滚动稳定性 Markdown 汇总和 Web action `auction_rolling`；本轮只跑单元测试小样本，没有启动全市场长任务；已通过 `compileall`、`unittest` 99 项、CLI version 和 `auction-rolling --help` 验证。
+- 2026-06-10 21:49 CST：审计早盘真实缓存 smoke 时发现竞价价为未复权口径、日 K 默认为 `hfq`，直接用复权 ATR 计算止损/止盈会产生不合理计划；已修正为价格口径不一致时使用周期百分比兜底，并在风险提示和 README 中说明；已通过 `compileall`、`unittest` 99 项、真实缓存 `screen morning` smoke 和 `/tmp` 小型 `auction-rolling` smoke。
