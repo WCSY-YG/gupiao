@@ -13,6 +13,7 @@ from typing import Any
 from gupiao.backtest import BacktestConfig, run_breakout_backtest
 from gupiao.data import (
     AkshareProvider,
+    AuctionMinuteBar,
     DailyBar,
     LocalDailyCacheImportConfig,
     SQLiteStore,
@@ -53,6 +54,16 @@ def build_parser() -> argparse.ArgumentParser:
     daily_parser.add_argument("--adjust", choices=["raw", "qfq", "hfq"], default="hfq")
     daily_parser.add_argument("--limit", type=positive_int, default=None)
     daily_parser.set_defaults(handler=handle_data_daily)
+
+    pre_market_parser = data_subparsers.add_parser(
+        "pre-market",
+        help="Fetch latest available pre-market call-auction minute bars from AKShare.",
+    )
+    pre_market_parser.add_argument("symbol")
+    pre_market_parser.add_argument("--start-time", default="09:15:00")
+    pre_market_parser.add_argument("--end-time", default="09:25:00")
+    pre_market_parser.add_argument("--limit", type=positive_int, default=None)
+    pre_market_parser.set_defaults(handler=handle_data_pre_market)
 
     update_daily_parser = data_subparsers.add_parser(
         "update-daily",
@@ -167,6 +178,18 @@ def handle_data_daily(args: argparse.Namespace) -> None:
             args.start,
             args.end,
             adjust=args.adjust,
+        ),
+        limit=args.limit,
+    )
+
+
+def handle_data_pre_market(args: argparse.Namespace) -> None:
+    provider = AkshareProvider()
+    write_json_lines(
+        provider.fetch_pre_market_minutes(
+            args.symbol,
+            start_time=args.start_time,
+            end_time=args.end_time,
         ),
         limit=args.limit,
     )
@@ -391,6 +414,16 @@ def read_daily_bars_jsonl(path: str | Path) -> list[DailyBar]:
     return bars
 
 
+def read_auction_minutes_jsonl(path: str | Path) -> list[AuctionMinuteBar]:
+    minutes = []
+    with Path(path).open(encoding="utf-8") as file:
+        for line in file:
+            if not line.strip():
+                continue
+            minutes.append(auction_minute_from_mapping(json.loads(line)))
+    return minutes
+
+
 def daily_bar_from_mapping(row: dict[str, Any]) -> DailyBar:
     fetched_at = row.get("fetched_at")
     return DailyBar(
@@ -404,6 +437,23 @@ def daily_bar_from_mapping(row: dict[str, Any]) -> DailyBar:
         amount=optional_float(row.get("amount")),
         turnover=optional_float(row.get("turnover")),
         adjust=row.get("adjust"),
+        provider=row.get("provider"),
+        fetched_at=datetime.fromisoformat(fetched_at) if fetched_at else None,
+    )
+
+
+def auction_minute_from_mapping(row: dict[str, Any]) -> AuctionMinuteBar:
+    fetched_at = row.get("fetched_at")
+    return AuctionMinuteBar(
+        symbol=str(row["symbol"]),
+        trade_time=datetime.fromisoformat(str(row["trade_time"])),
+        open=float(row["open"]),
+        close=float(row["close"]),
+        high=float(row["high"]),
+        low=float(row["low"]),
+        volume=float(row["volume"]),
+        amount=optional_float(row.get("amount")),
+        latest_price=optional_float(row.get("latest_price")),
         provider=row.get("provider"),
         fetched_at=datetime.fromisoformat(fetched_at) if fetched_at else None,
     )

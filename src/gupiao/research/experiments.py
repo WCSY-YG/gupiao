@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import date
+
+from gupiao.data import AuctionProfile, DailyBar
 
 
 @dataclass(frozen=True)
@@ -104,6 +107,55 @@ def allocate_by_score(
     if capped_sum == 0:
         return {}
     return {symbol: round(weight / capped_sum, 6) for symbol, weight in capped.items()}
+
+
+def build_auction_research_samples(
+    symbol: str,
+    bars: Sequence[DailyBar],
+    auction_profiles: Mapping[date, AuctionProfile],
+    *,
+    lookahead_bars: int = 1,
+) -> list[ResearchSample]:
+    if lookahead_bars <= 0:
+        raise ValueError("lookahead_bars must be positive")
+    ordered_bars = sorted(bars, key=lambda item: item.trade_date)
+    samples: list[ResearchSample] = []
+    for index, bar in enumerate(ordered_bars):
+        if index == 0:
+            continue
+        future_index = index + lookahead_bars
+        if future_index >= len(ordered_bars):
+            break
+        profile = auction_profiles.get(bar.trade_date)
+        if profile is None:
+            continue
+        previous_bar = ordered_bars[index - 1]
+        future_bar = ordered_bars[future_index]
+        target_return = (future_bar.close / bar.open) - 1 if bar.open > 0 else 0.0
+        samples.append(
+            ResearchSample(
+                symbol=symbol,
+                features={
+                    "auction_strength_score": profile.strength_score,
+                    "auction_gap_pct": profile.gap_pct or 0.0,
+                    "auction_range_pct": profile.range_pct or 0.0,
+                    "auction_volume_ratio_to_daily": profile.volume_ratio_to_daily or 0.0,
+                    "previous_daily_return": (
+                        (previous_bar.close / previous_bar.open) - 1
+                        if previous_bar.open > 0
+                        else 0.0
+                    ),
+                    "previous_range_pct": (
+                        (previous_bar.high - previous_bar.low) / previous_bar.close
+                        if previous_bar.close > 0
+                        else 0.0
+                    ),
+                    "previous_volume": previous_bar.volume,
+                },
+                target_return=target_return,
+            )
+        )
+    return samples
 
 
 def feature_mean(samples: Sequence[ResearchSample], feature: str) -> float:

@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 
-from gupiao.data import DailyBar, has_errors, validate_daily_bars
+from gupiao.data import AuctionProfile, DailyBar, has_errors, validate_daily_bars
 from gupiao.indicators import closes, sma
 
 
@@ -29,8 +29,16 @@ class MovingAverageVolumeBreakoutStrategy:
     volume_window: int = 20
     breakout_window: int = 20
     min_volume_ratio: float = 1.5
+    min_auction_score: float | None = None
+    auction_score_weight: float = 0.15
 
-    def evaluate(self, symbol: str, bars: Sequence[DailyBar]) -> ScreeningCandidate | None:
+    def evaluate(
+        self,
+        symbol: str,
+        bars: Sequence[DailyBar],
+        *,
+        auction_profile: AuctionProfile | None = None,
+    ) -> ScreeningCandidate | None:
         if len(bars) < self.required_bars:
             return None
 
@@ -61,13 +69,19 @@ class MovingAverageVolumeBreakoutStrategy:
         if not (trend_ok and breakout_ok and volume_ok):
             return None
 
-        reasons = (
+        if self.min_auction_score is not None:
+            if auction_profile is None:
+                return None
+            if auction_profile.strength_score < self.min_auction_score:
+                return None
+
+        reasons = [
             f"close above MA stack: close={latest.close:.4f}, "
             f"ma{self.short_window}={short_ma:.4f}, "
             f"ma{self.medium_window}={medium_ma:.4f}, ma{self.long_window}={long_ma:.4f}",
             f"close breakout above prior {self.breakout_window}-bar high {previous_high:.4f}",
             f"volume ratio {volume_ratio:.2f} >= {self.min_volume_ratio:.2f}",
-        )
+        ]
         metrics = {
             "close": latest.close,
             f"ma{self.short_window}": short_ma,
@@ -84,12 +98,40 @@ class MovingAverageVolumeBreakoutStrategy:
             volume_ratio=volume_ratio,
             min_volume_ratio=self.min_volume_ratio,
         )
+        if auction_profile is not None:
+            reasons.append(
+                "auction strength "
+                f"{auction_profile.strength_score:.2f}"
+                + (
+                    f", gap={auction_profile.gap_pct:.2%}"
+                    if auction_profile.gap_pct is not None
+                    else ""
+                )
+            )
+            metrics.update(
+                {
+                    "auction_strength_score": auction_profile.strength_score,
+                    "auction_indicative_price": auction_profile.indicative_price,
+                    "auction_volume": auction_profile.volume,
+                }
+            )
+            if auction_profile.gap_pct is not None:
+                metrics["auction_gap_pct"] = auction_profile.gap_pct
+            if auction_profile.volume_ratio_to_daily is not None:
+                metrics["auction_volume_ratio_to_daily"] = (
+                    auction_profile.volume_ratio_to_daily
+                )
+            score = score_with_auction(
+                base_score=score,
+                auction_score=auction_profile.strength_score,
+                weight=self.auction_score_weight,
+            )
         return ScreeningCandidate(
             symbol=symbol,
             trade_date=latest.trade_date,
             strategy=self.name,
             score=score,
-            reasons=reasons,
+            reasons=tuple(reasons),
             metrics=metrics,
         )
 
@@ -111,4 +153,10 @@ def score_candidate(
     breakout_strength = (close / short_ma) - 1
     volume_strength = min(volume_ratio / min_volume_ratio, 3.0) / 3.0
     raw_score = 60 + (trend_spread * 100) + (breakout_strength * 100) + (volume_strength * 20)
+    return round(max(0.0, min(raw_score, 100.0)), 2)
+
+
+def score_with_auction(*, base_score: float, auction_score: float, weight: float) -> float:
+    bounded_weight = max(0.0, min(weight, 1.0))
+    raw_score = (base_score * (1 - bounded_weight)) + (auction_score * bounded_weight)
     return round(max(0.0, min(raw_score, 100.0)), 2)

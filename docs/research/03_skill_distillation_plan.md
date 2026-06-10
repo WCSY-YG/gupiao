@@ -14,6 +14,7 @@
 | Skill 名称 | 主要来源 | 作用 | 产出形态 | 优先级 |
 |---|---|---|---|---|
 | `stock-data-ingestion` | AKShare、Tushare、OpenBB、yfinance | 获取股票列表、日线、复权、财务、资金流，落库并校验 | 数据接口规范、字段字典、更新任务流程 | P0 |
+| `auction-data-integration` | AKShare、东方财富盘前分时、本地 `cache/jingjia` | 整合集合竞价分钟/快照数据，生成竞价画像并接入选股与回测 | 竞价字段规范、特征工程、反未来函数清单 | P0 |
 | `stock-screening-strategies` | myhhub/stock、zvt、Qlib | 构建基本面、技术面、资金面、趋势、反转、多因子选股策略 | 策略模板、筛选条件 DSL、策略登记规范 | P0 |
 | `technical-signal-buy-sell` | TA-Lib、bukosabino/ta、myhhub/stock、hikyuu | 计算指标和 K 线形态，输出买卖点解释 | 指标清单、信号打分、止损止盈规则 | P0 |
 | `backtest-validation` | backtesting.py、backtrader、vectorbt、RQAlpha | 回测单策略和批量策略，检查未来函数、费用、滑点、T+1 | 回测流程、反作弊清单、基准比较 | P0 |
@@ -36,4 +37,3 @@
 1. 先深读 `AKShare`、`myhhub/stock`、`TA-Lib`、`backtesting.py`、`QuantStats`。
 2. 创建项目内 `skills/` 目录和 P0 五个 skill 初稿。
 3. 以一个最小策略闭环验证：取 A 股日线 -> 算指标 -> 选股 -> 买卖点解释 -> 回测 -> 绩效报告。
-

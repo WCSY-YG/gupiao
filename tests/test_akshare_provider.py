@@ -10,7 +10,7 @@ from gupiao.data.akshare_provider import (
     normalize_adjust,
     normalize_symbol,
 )
-from gupiao.data.schema import DailyBar
+from gupiao.data.schema import AuctionMinuteBar, DailyBar
 from gupiao.scan import DEFAULT_SCAN_END, DEFAULT_SCAN_START
 
 
@@ -26,6 +26,7 @@ class FakeFrame:
 class FakeAkshare:
     def __init__(self):
         self.daily_args = None
+        self.pre_market_args = None
 
     def stock_info_a_code_name(self):
         return FakeFrame(
@@ -50,6 +51,23 @@ class FakeAkshare:
                     "成交量": "123456",
                     "成交额": "7890000",
                     "换手率": "1.23",
+                }
+            ]
+        )
+
+    def stock_zh_a_hist_pre_min_em(self, **kwargs):
+        self.pre_market_args = kwargs
+        return FakeFrame(
+            [
+                {
+                    "时间": "2026-06-10 09:25:00",
+                    "开盘": "10.20",
+                    "收盘": "10.35",
+                    "最高": "10.40",
+                    "最低": "10.18",
+                    "成交量": "1200",
+                    "成交额": "1242000",
+                    "最新价": "10.35",
                 }
             ]
         )
@@ -115,6 +133,45 @@ class AkshareProviderTest(TestCase):
             ],
         )
 
+    def test_fetch_pre_market_minutes_maps_akshare_rows(self) -> None:
+        fake = FakeAkshare()
+        provider = AkshareProvider(fake)
+
+        minutes = list(
+            provider.fetch_pre_market_minutes(
+                "SZ000001",
+                start_time="09:15:00",
+                end_time="09:25:00",
+            )
+        )
+
+        self.assertEqual(
+            fake.pre_market_args,
+            {
+                "symbol": "000001",
+                "start_time": "09:15:00",
+                "end_time": "09:25:00",
+            },
+        )
+        self.assertEqual(
+            minutes,
+            [
+                AuctionMinuteBar(
+                    symbol="000001",
+                    trade_time=minutes[0].trade_time,
+                    open=10.2,
+                    close=10.35,
+                    high=10.4,
+                    low=10.18,
+                    volume=1200.0,
+                    amount=1242000.0,
+                    latest_price=10.35,
+                    provider="akshare",
+                    fetched_at=minutes[0].fetched_at,
+                )
+            ],
+        )
+
     def test_normalization_helpers(self) -> None:
         self.assertEqual(normalize_symbol("000001.SZ"), "000001")
         self.assertEqual(normalize_symbol("SH600000"), "600000")
@@ -149,6 +206,26 @@ class AkshareProviderTest(TestCase):
         self.assertEqual(args.start, date(2026, 6, 1))
         self.assertEqual(args.end, date(2026, 6, 9))
         self.assertEqual(args.limit, 5)
+
+    def test_cli_pre_market_arguments_parse_without_fetching(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "data",
+                "pre-market",
+                "000001",
+                "--start-time",
+                "09:15:00",
+                "--end-time",
+                "09:25:00",
+                "--limit",
+                "2",
+            ]
+        )
+
+        self.assertEqual(args.symbol, "000001")
+        self.assertEqual(args.start_time, "09:15:00")
+        self.assertEqual(args.end_time, "09:25:00")
+        self.assertEqual(args.limit, 2)
 
     def test_cli_scan_market_defaults_parse_without_fetching(self) -> None:
         args = build_parser().parse_args(["scan", "market"])

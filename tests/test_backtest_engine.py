@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 from unittest import TestCase
 
+from gupiao.auction import build_auction_profile
 from gupiao.backtest import (
     BacktestConfig,
     can_enter,
@@ -14,6 +15,8 @@ from gupiao.backtest import (
     win_rate,
 )
 from gupiao.strategies import MovingAverageVolumeBreakoutStrategy
+
+from tests.test_auction_features import auction_minutes
 from tests.test_screening_strategy import breakout_bars
 
 
@@ -59,6 +62,37 @@ class BacktestEngineTest(TestCase):
 
         with self.assertRaises(ValueError):
             run_breakout_backtest("000001", bars, strategy=small_strategy())
+
+    def test_run_breakout_backtest_uses_auction_profiles(self) -> None:
+        bars = breakout_bars()
+        bars.append(replace_price(bars[-1], close=14.0, high=15.0, low=13.8, days_after=1))
+        profile = build_auction_profile(
+            "000001",
+            auction_minutes(),
+            previous_close=10.0,
+            average_daily_volume=10_000.0,
+        )
+        assert profile is not None
+        strategy = MovingAverageVolumeBreakoutStrategy(
+            short_window=3,
+            medium_window=5,
+            long_window=8,
+            volume_window=5,
+            breakout_window=5,
+            min_volume_ratio=1.5,
+            min_auction_score=60.0,
+        )
+
+        result = run_breakout_backtest(
+            "000001",
+            bars,
+            strategy=strategy,
+            config=BacktestConfig(atr_window=3),
+            auction_profiles={bars[-2].trade_date: profile},
+        )
+
+        self.assertGreaterEqual(result.trade_count, 1)
+        self.assertTrue(any("Call-auction profiles" in item for item in result.assumptions))
 
     def test_metric_helpers(self) -> None:
         self.assertAlmostEqual(max_drawdown([100.0, 120.0, 90.0, 130.0]), -0.25)

@@ -7,7 +7,7 @@ from collections.abc import Iterable, Mapping
 from datetime import date, datetime, timezone
 from typing import Any
 
-from gupiao.data.schema import DailyBar, Instrument
+from gupiao.data.schema import AuctionMinuteBar, DailyBar, Instrument
 
 Record = Mapping[str, Any]
 
@@ -63,6 +63,35 @@ class AkshareProvider:
                 amount=optional_float(row, "成交额", "amount"),
                 turnover=optional_float(row, "换手率", "turnover"),
                 adjust=adjust,
+                provider=self.name,
+                fetched_at=fetched_at,
+            )
+
+    def fetch_pre_market_minutes(
+        self,
+        symbol: str,
+        *,
+        start_time: str = "09:15:00",
+        end_time: str = "09:25:00",
+    ) -> Iterable[AuctionMinuteBar]:
+        normalized_symbol = normalize_symbol(symbol)
+        fetched_at = datetime.now(timezone.utc)
+        frame = self._akshare().stock_zh_a_hist_pre_min_em(
+            symbol=normalized_symbol,
+            start_time=start_time,
+            end_time=end_time,
+        )
+        for row in records_from_frame(frame):
+            yield AuctionMinuteBar(
+                symbol=normalized_symbol,
+                trade_time=parse_datetime(first_value(row, "时间", "time", "datetime")),
+                open=required_float(row, "开盘", "open"),
+                close=required_float(row, "收盘", "close"),
+                high=required_float(row, "最高", "high"),
+                low=required_float(row, "最低", "low"),
+                volume=required_float(row, "成交量", "volume"),
+                amount=optional_float(row, "成交额", "amount"),
+                latest_price=optional_float(row, "最新价", "latest_price"),
                 provider=self.name,
                 fetched_at=fetched_at,
             )
@@ -150,6 +179,13 @@ def parse_date(value: Any) -> date:
     if len(text) == 8 and text.isdigit():
         return date.fromisoformat(f"{text[:4]}-{text[4:6]}-{text[6:]}")
     return date.fromisoformat(text)
+
+
+def parse_datetime(value: Any) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    text = str(value).strip()
+    return datetime.fromisoformat(text)
 
 
 def required_float(row: Record, *keys: str) -> float:

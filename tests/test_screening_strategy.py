@@ -3,8 +3,15 @@ from __future__ import annotations
 from datetime import date, timedelta
 from unittest import TestCase
 
+from gupiao.auction import build_auction_profile
 from gupiao.data import DailyBar
-from gupiao.strategies import MovingAverageVolumeBreakoutStrategy, score_candidate
+from gupiao.strategies import (
+    MovingAverageVolumeBreakoutStrategy,
+    score_candidate,
+    score_with_auction,
+)
+
+from tests.test_auction_features import auction_minutes
 
 
 class ScreeningStrategyTest(TestCase):
@@ -39,6 +46,43 @@ class ScreeningStrategyTest(TestCase):
 
         self.assertIsNone(strategy.evaluate("000001", breakout_bars()))
 
+    def test_ma_volume_breakout_can_use_auction_profile(self) -> None:
+        strategy = MovingAverageVolumeBreakoutStrategy(
+            short_window=3,
+            medium_window=5,
+            long_window=8,
+            volume_window=5,
+            breakout_window=5,
+            min_volume_ratio=1.5,
+            min_auction_score=60.0,
+        )
+        profile = build_auction_profile(
+            "000001",
+            auction_minutes(),
+            previous_close=10.0,
+            average_daily_volume=10_000.0,
+        )
+
+        candidate = strategy.evaluate("000001", breakout_bars(), auction_profile=profile)
+
+        self.assertIsNotNone(candidate)
+        assert candidate is not None
+        self.assertIn("auction_strength_score", candidate.metrics)
+        self.assertTrue(any("auction strength" in reason for reason in candidate.reasons))
+
+    def test_ma_volume_breakout_rejects_missing_required_auction_profile(self) -> None:
+        strategy = MovingAverageVolumeBreakoutStrategy(
+            short_window=3,
+            medium_window=5,
+            long_window=8,
+            volume_window=5,
+            breakout_window=5,
+            min_volume_ratio=1.5,
+            min_auction_score=60.0,
+        )
+
+        self.assertIsNone(strategy.evaluate("000001", breakout_bars()))
+
     def test_ma_volume_breakout_rejects_bad_quality_data(self) -> None:
         strategy = MovingAverageVolumeBreakoutStrategy(
             short_window=3,
@@ -64,6 +108,9 @@ class ScreeningStrategyTest(TestCase):
             ),
             100.0,
         )
+
+    def test_score_with_auction_blends_scores(self) -> None:
+        self.assertEqual(score_with_auction(base_score=80.0, auction_score=60.0, weight=0.25), 75.0)
 
 
 def breakout_bars() -> list[DailyBar]:

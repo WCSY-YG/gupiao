@@ -37,6 +37,7 @@ Backtests must specify:
 - Date range and rebalance frequency.
 - Price adjustment mode.
 - Execution price rule.
+- Decision timestamp, especially whether same-day call-auction data is available before entry.
 - Commission, tax, slippage, and minimum fee.
 - A-share T+1 and limit-up/down handling.
 - Position sizing and maximum holdings.
@@ -44,6 +45,7 @@ Backtests must specify:
 ## Anti-Cheating Checks
 
 - No future bars in indicators.
+- Call-auction features must come from the auction timestamp only; do not use the same day's close/high/low to decide pre-open entries.
 - Financial data must use release date, not only report period.
 - No survivorship bias in historical universes.
 - Parameter optimization must be separated from final evaluation.

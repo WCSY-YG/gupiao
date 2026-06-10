@@ -13,6 +13,7 @@ Every strategy must define:
 
 - Universe: market, boards, industries, ST/exclusion rules.
 - Required data: bars, fundamentals, money flow, indicators, index benchmark.
+- Optional auction data: same-day call-auction profile with indicative price, gap, volume ratio, range, and strength score.
 - Signal logic: exact filters or factor scoring formula.
 - Ranking logic: tie-breakers, weights, top N, thresholds.
 - Rebalance rule: daily, weekly, monthly, or signal-triggered.
@@ -32,6 +33,7 @@ Every strategy must define:
 - Trend: moving average alignment, Donchian breakout, relative strength.
 - Reversal: RSI/KDJ/CCI oversold recovery, low volatility contraction.
 - Volume-price: volume breakout, price-volume divergence, money inflow.
+- Call auction: positive but not overheated gap, meaningful auction volume, stable indicative price range, bid/ask imbalance when available.
 - Pattern: candlestick patterns from TA-Lib or local pattern rules.
 - Multi-factor: value, quality, growth, momentum, volatility, liquidity scoring.
 
@@ -49,6 +51,7 @@ Borrow the batch-job split from myhhub/stock without copying its full deployment
 
 - Compare selections against a benchmark universe.
 - Backtest with realistic costs, slippage, T+1, and limit-up/down constraints.
+- When using same-day call-auction signals, verify the decision timestamp and do not let post-open K-line data leak into pre-open selection.
 - Run out-of-sample or rolling-window validation before promoting a strategy.
 - Report both top winners and failed selections; do not hide false positives.
 

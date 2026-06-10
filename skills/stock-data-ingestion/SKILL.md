@@ -25,6 +25,7 @@ Use this skill when the task needs market data collection, refresh jobs, storage
 
 - `stock_info_a_code_name`: A-share instrument code/name universe.
 - `stock_zh_a_hist`: daily OHLCV and turnover data; always record `adjust`.
+- `stock_zh_a_hist_pre_min_em`: latest available A-share pre-market minute data including call-auction minutes; default use `09:15:00` to `09:25:00` for call-auction profiling.
 - `stock_individual_fund_flow`: recent individual-stock money flow.
 - `stock_financial_analysis_indicator`: historical financial indicators by symbol and start year.
 
@@ -63,4 +64,5 @@ Data tasks should document:
 - Unit tests should use fixture files; live AKShare calls belong in integration tests or manual smoke checks.
 - Store `provider`, `fetched_at`, `adjust`, and source parameters with each batch.
 - Preserve raw provider output when practical, then write normalized tables for downstream code.
+- Keep daily K-line tables and call-auction tables separate. Call-auction snapshots have different timestamps, volume meaning, and lookahead risks.
 - Treat AKShare data as research input only; do not represent it as investment advice or guaranteed complete data.

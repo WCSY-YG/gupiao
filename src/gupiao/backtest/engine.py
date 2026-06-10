@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 
-from gupiao.data import DailyBar, has_errors, validate_daily_bars
+from gupiao.data import AuctionProfile, DailyBar, has_errors, validate_daily_bars
 from gupiao.signals import SignalPlan, build_breakout_signal
 from gupiao.strategies import MovingAverageVolumeBreakoutStrategy
 
@@ -67,6 +67,7 @@ def run_breakout_backtest(
     *,
     strategy: MovingAverageVolumeBreakoutStrategy | None = None,
     config: BacktestConfig | None = None,
+    auction_profiles: Mapping[date, AuctionProfile] | None = None,
 ) -> BacktestResult:
     strategy = strategy or MovingAverageVolumeBreakoutStrategy()
     config = config or BacktestConfig()
@@ -84,6 +85,7 @@ def run_breakout_backtest(
     active_signal: SignalPlan | None = None
     equity_curve: list[EquityPoint] = []
     trades: list[Trade] = []
+    auction_profiles = auction_profiles or {}
 
     for index, bar in enumerate(ordered_bars):
         exited_this_bar = False
@@ -122,7 +124,11 @@ def run_breakout_backtest(
 
         if quantity == 0 and not exited_this_bar:
             history = ordered_bars[: index + 1]
-            candidate = strategy.evaluate(symbol, history)
+            candidate = strategy.evaluate(
+                symbol,
+                history,
+                auction_profile=auction_profiles.get(bar.trade_date),
+            )
             if candidate is not None:
                 signal = build_breakout_signal(
                     candidate,
@@ -184,6 +190,9 @@ def run_breakout_backtest(
             "Long-only, single-symbol MVP backtest.",
             "Entries execute at signal close with configured slippage.",
             "A-share constraints apply when config.apply_a_share_constraints is true.",
+            "Call-auction profiles are applied only on matching trade dates."
+            if auction_profiles
+            else "No call-auction filter was applied.",
         ),
     )
 

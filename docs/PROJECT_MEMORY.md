@@ -191,6 +191,7 @@ MVP 优先参考项目：
 ## 建议技术路线
 
 - Python 3.11/3.12。
+- 后续所有 Python 命令默认使用 conda 的 `agent` 环境，例如 `conda run -n agent python -m unittest discover -s tests`。
 - 数据处理：pandas，后期可引入 Polars。
 - 存储：SQLite/DuckDB + Parquet。
 - 数据源：AKShare 作为 MVP 主数据源。
@@ -228,6 +229,17 @@ MVP 优先参考项目：
 - `daily_k` 老格式缺少真实成交量，导入器用 `amount / close` 估算并标记 provider；后续使用放量策略时要把该估算风险写进报告。
 - `cache/jingjia/*.rar` 已确认可用 `unrar` 读取，字段包含 `security_id, md_date, md_time, pre_close, last, open, total_volume_trade, total_value_trade, bid/ask` 等集合竞价快照；当前不混入日 K 表，后续应新建竞价专用表或按需抽取特征。
 - 扫描缓存逻辑已加完整性保护：只有缓存最新交易日覆盖扫描 `--end` 时才直接复用，避免本地日 K 只到 `2026-04-23` 却被误用于 `2026-06-10` 全区间扫描。
+
+## 2026-06-10 16:55 CST 竞价增强记忆
+
+- AKShare 源码/文档确认 `stock_zh_a_hist_pre_min_em` 为东方财富盘前分时接口，单次返回最近一个交易日分钟数据，包含盘前数据；适合实时/当日竞价画像，不适合单独声明历史回测。
+- 新增 `AuctionMinuteBar` 和 `AuctionProfile`，支持从盘前分钟数据生成竞价画像：竞价缺口、竞价量比、竞价波动和 0-100 竞价强度分。
+- `AkshareProvider.fetch_pre_market_minutes` 已对接 AKShare 盘前分钟接口，CLI 新增 `data pre-market`。
+- `MovingAverageVolumeBreakoutStrategy` 可选接收 `auction_profile`，将竞价强度分数、竞价缺口和竞价成交量写入候选指标，并可用 `min_auction_score` 过滤。
+- `run_breakout_backtest` 可按交易日注入历史 `AuctionProfile`，用于对比“纯 K 线策略”和“竞价增强策略”。
+- `build_auction_research_samples` 可生成竞价特征与未来收益样本，供后续滚动验证和轻量 ML 评分迭代。
+- 历史竞价回测应优先导入本地 `cache/jingjia/*.rar` 的历史快照，按 `symbol + trade_date` 生成 `AuctionProfile` 后注入回测。
+- 竞价增强策略必须保留时间边界：开盘前决策只能使用竞价时间戳之前的数据，不能用同日收盘/最高/最低反推。
 
 ## 注意事项
 

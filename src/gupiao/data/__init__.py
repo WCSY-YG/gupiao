@@ -13,11 +13,13 @@ from gupiao.data.quality import (
     validate_daily_bars,
     validate_instruments,
 )
-from gupiao.data.schema import DailyBar, Instrument
+from gupiao.data.schema import AuctionMinuteBar, AuctionProfile, DailyBar, Instrument
 from gupiao.data.storage import SQLiteStore
 
 __all__ = [
     "AkshareProvider",
+    "AuctionMinuteBar",
+    "AuctionProfile",
     "DailyBar",
     "DataProvider",
     "Instrument",

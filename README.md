@@ -1,6 +1,6 @@
 # gupiao
 
-A-share stock screening and buy/sell signal research toolkit.
+A 股选股、买卖点分析、竞价数据增强与量化研究辅助工具。
 
 `gupiao` 是一个面向 A 股的量化研究辅助项目，用来串起数据接入、指标计算、策略选股、买卖点解释、回测验证、中文报告和静态 Dashboard。项目只用于研究和决策支持，不构成投资建议，也不默认接入真实交易。
 
@@ -11,60 +11,59 @@ A-share stock screening and buy/sell signal research toolkit.
 - 数据质量检查，覆盖缺失、重复、时间顺序、异常 OHLC、停牌提示等。
 - 纯 Python 技术指标：SMA、EMA、MACD、KDJ、RSI、BOLL、ATR、OBV。
 - MVP 选股策略：均线多头 + 放量突破。
+- 竞价数据增强：支持 AKShare 盘前分钟数据、竞价画像、竞价强度评分，并可参与选股和回测。
 - 买卖点解释：入场、加仓、减仓、止损、止盈、信号失效条件。
 - A 股约束回测：T+1、涨跌停、停牌、手续费、滑点。
 - 中文 Markdown 绩效报告和自包含静态 HTML Dashboard。
 - 多因子评分、轻量 ML 评分和组合权重研究脚手架。
 - 可恢复的全 A 股市场扫描，批量拉取日线、回测并生成轻量汇总。
-- GitHub 高星项目调研，并蒸馏为项目内 reusable skills。
+- GitHub 高星项目调研，并蒸馏为项目内可复用 skills。
 
 ## 安装
 
-建议使用 Python 3.11 或 3.12。
+建议使用 Python 3.11 或 3.12。后续所有 Python 命令默认使用 conda 的 `agent` 环境。
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -U pip
-python -m pip install -e ".[dev]"
+conda run -n agent python -m pip install -U pip
+conda run -n agent python -m pip install -e ".[dev]"
 ```
 
 如果需要从 AKShare 拉取真实行情，再安装数据相关依赖：
 
 ```bash
-python -m pip install -e ".[data]"
+conda run -n agent python -m pip install -e ".[data]"
 ```
 
 也可以一次安装研究、回测和报告相关可选依赖：
 
 ```bash
-python -m pip install -e ".[data,analysis,backtest,report,dev]"
+conda run -n agent python -m pip install -e ".[data,analysis,backtest,report,dev]"
 ```
 
 ## 基础验证
 
 ```bash
-PYTHONPATH=src python -m compileall -q src tests
-PYTHONPATH=src python -m unittest discover -s tests
-PYTHONPATH=src python -m gupiao.cli --version
+conda run -n agent python -m compileall -q src tests
+conda run -n agent env PYTHONPATH=src python -m unittest discover -s tests
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli --version
 ```
 
 当前版本：
 
 ```bash
-0.1.0
+0.2.0
 ```
 
 ## 命令行使用方法
 
-以下命令都可以用 `PYTHONPATH=src python -m gupiao.cli ...` 运行；安装为 editable 包之后，也可以直接使用 `gupiao ...`。
+以下命令都可以用 `conda run -n agent env PYTHONPATH=src python -m gupiao.cli ...` 运行；安装为 editable 包之后，也可以直接使用 `gupiao ...`。
 
 ### 查看 A 股股票列表
 
 需要先安装 `akshare`：
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli data instruments --limit 10
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli data instruments --limit 10
 ```
 
 输出格式为 JSON Lines，每一行是一只股票，便于后续脚本继续处理。
@@ -72,7 +71,7 @@ PYTHONPATH=src python -m gupiao.cli data instruments --limit 10
 ### 获取单只股票日线
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli data daily 000001 --start 2026-01-01 --end 2026-06-10 --adjust hfq --limit 5
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli data daily 000001 --start 2026-01-01 --end 2026-06-10 --adjust hfq --limit 5
 ```
 
 `--adjust` 可选：
@@ -84,13 +83,23 @@ PYTHONPATH=src python -m gupiao.cli data daily 000001 --start 2026-01-01 --end 2
 保存为本地 JSONL 样例：
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli data daily 000001 --start 2026-01-01 --end 2026-06-10 --adjust hfq > data/000001_daily.jsonl
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli data daily 000001 --start 2026-01-01 --end 2026-06-10 --adjust hfq > data/000001_daily.jsonl
 ```
+
+### 获取当日盘前竞价分钟数据
+
+AKShare 的 `stock_zh_a_hist_pre_min_em` 当前返回最近一个交易日的盘前分钟数据，可用于生成竞价画像：
+
+```bash
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli data pre-market 000001 --start-time 09:15:00 --end-time 09:25:00
+```
+
+后续历史竞价回测应优先从本地 `cache/jingjia/` 或专门竞价表导入历史快照，再按交易日注入回测。
 
 ### 拉取日线并写入 SQLite
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli data update-daily 000001 --start 2026-01-01 --end 2026-06-10 --adjust hfq --db data/gupiao.sqlite
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli data update-daily 000001 --start 2026-01-01 --end 2026-06-10 --adjust hfq --db data/gupiao.sqlite
 ```
 
 命令会输出写入的数据库路径、股票代码和写入行数。
@@ -100,7 +109,7 @@ PYTHONPATH=src python -m gupiao.cli data update-daily 000001 --start 2026-01-01 
 选股输入为日线 JSONL 文件：
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli screen breakout --bars data/000001_daily.jsonl --symbol 000001
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli screen breakout --bars data/000001_daily.jsonl --symbol 000001
 ```
 
 常用参数：
@@ -117,7 +126,7 @@ PYTHONPATH=src python -m gupiao.cli screen breakout --bars data/000001_daily.jso
 ### 生成买卖点解释
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli signal breakout --bars data/000001_daily.jsonl --symbol 000001
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli signal breakout --bars data/000001_daily.jsonl --symbol 000001
 ```
 
 可调信号参数：
@@ -131,7 +140,7 @@ PYTHONPATH=src python -m gupiao.cli signal breakout --bars data/000001_daily.jso
 ### 运行回测
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli backtest breakout --bars data/000001_daily.jsonl --symbol 000001
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli backtest breakout --bars data/000001_daily.jsonl --symbol 000001
 ```
 
 可调回测参数：
@@ -148,7 +157,7 @@ PYTHONPATH=src python -m gupiao.cli backtest breakout --bars data/000001_daily.j
 ### 生成中文 Markdown 报告
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli report breakout --bars data/000001_daily.jsonl --symbol 000001 --output reports/generated/000001_breakout.md
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli report breakout --bars data/000001_daily.jsonl --symbol 000001 --output reports/generated/000001_breakout.md
 ```
 
 报告内容包括候选股、买卖点计划、回测指标、交易明细、风险提示和回测假设。
@@ -158,7 +167,7 @@ PYTHONPATH=src python -m gupiao.cli report breakout --bars data/000001_daily.jso
 如果已有按交易日拆分的全市场日 K CSV，例如 `cache/daily_k/market_data_cache/market_YYYY-MM-DD.csv`，可以先导入 SQLite，减少 AKShare 远端断连影响：
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli data import-daily-cache \
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli data import-daily-cache \
   --source cache/daily_k/market_data_cache \
   --db data/cache/market_scan.sqlite \
   --start 2023-06-10 \
@@ -170,7 +179,7 @@ PYTHONPATH=src python -m gupiao.cli data import-daily-cache \
 建议先 dry-run 统计可导入规模：
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli data import-daily-cache \
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli data import-daily-cache \
   --source cache/daily_k/market_data_cache \
   --start 2023-06-10 \
   --end 2026-04-23 \
@@ -189,13 +198,13 @@ PYTHONPATH=src python -m gupiao.cli data import-daily-cache \
 需要先安装 `akshare`：
 
 ```bash
-python -m pip install -e ".[data]"
+conda run -n agent python -m pip install -e ".[data]"
 ```
 
 默认扫描区间为 `2023-06-10` 至 `2026-06-10`，复权方式为 `hfq`。完整扫描命令：
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli scan market \
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli scan market \
   --start 2023-06-10 \
   --end 2026-06-10 \
   --adjust hfq \
@@ -211,7 +220,7 @@ PYTHONPATH=src python -m gupiao.cli scan market \
 先做 3 只股票 smoke test：
 
 ```bash
-PYTHONPATH=src python -m gupiao.cli scan market --limit 3 --retry-sleep 0 --request-sleep 0.1 --request-timeout 30 --public-summary reports/summaries/smoke_market_scan.md
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli scan market --limit 3 --retry-sleep 0 --request-sleep 0.1 --request-timeout 30 --public-summary reports/summaries/smoke_market_scan.md
 ```
 
 产物规则：
@@ -252,6 +261,7 @@ PYTHONPATH=src python -m gupiao.cli scan market --limit 3 --retry-sleep 0 --requ
 已根据 AKShare、myhhub/stock、TA-Lib Python、backtesting.py、QuantStats 等高星/高相关项目蒸馏出以下项目内 skills：
 
 - `skills/stock-data-ingestion`
+- `skills/auction-data-integration`
 - `skills/stock-screening-strategies`
 - `skills/technical-signal-buy-sell`
 - `skills/backtest-validation`

@@ -30,3 +30,43 @@ class DailyBar:
     adjust: str | None = None
     provider: str | None = None
     fetched_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class AuctionMinuteBar:
+    symbol: str
+    trade_time: datetime
+    open: float
+    close: float
+    high: float
+    low: float
+    volume: float
+    amount: float | None = None
+    latest_price: float | None = None
+    provider: str | None = None
+    fetched_at: datetime | None = None
+
+    @property
+    def trade_date(self) -> date:
+        return self.trade_time.date()
+
+
+@dataclass(frozen=True)
+class AuctionProfile:
+    symbol: str
+    trade_date: date
+    auction_time: datetime
+    indicative_price: float
+    open: float
+    high: float
+    low: float
+    volume: float
+    amount: float | None = None
+    latest_price: float | None = None
+    previous_close: float | None = None
+    gap_pct: float | None = None
+    range_pct: float | None = None
+    volume_ratio_to_daily: float | None = None
+    strength_score: float = 50.0
+    provider: str | None = None
+    fetched_at: datetime | None = None

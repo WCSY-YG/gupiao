@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 - 2026-06-10
+
+- Added call-auction minute data ingestion through AKShare `stock_zh_a_hist_pre_min_em`.
+- Added auction profile feature engineering and auction-strength scoring.
+- Let breakout screening and backtests optionally use historical auction profiles.
+- Added auction research sample generation for iterative K-line plus auction evaluation.
+- Updated README to Chinese-first conda `agent` usage.
+
 ## 0.1.0 - 2026-06-10
 
 - Initialized Git repository structure.
@@ -12,4 +20,3 @@
   - `technical-signal-buy-sell`
   - `backtest-validation`
   - `performance-risk-reporting`
-

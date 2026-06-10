@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from datetime import date
 from typing import Protocol
 
-from gupiao.data.schema import DailyBar, Instrument
+from gupiao.data.schema import AuctionMinuteBar, DailyBar, Instrument
 
 
 class DataProvider(Protocol):
@@ -26,3 +26,12 @@ class DataProvider(Protocol):
         adjust: str = "hfq",
     ) -> Iterable[DailyBar]:
         """Return daily OHLCV bars for one symbol."""
+
+    def fetch_pre_market_minutes(
+        self,
+        symbol: str,
+        *,
+        start_time: str = "09:15:00",
+        end_time: str = "09:25:00",
+    ) -> Iterable[AuctionMinuteBar]:
+        """Return the latest available pre-market call-auction minute bars."""
