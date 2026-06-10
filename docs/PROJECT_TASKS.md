@@ -1,6 +1,6 @@
 # 项目任务清单
 
-更新时间：2026-06-10 22:47 CST
+更新时间：2026-06-10 23:51 CST
 
 本文档是项目自动推进的状态源。每一轮任务开始前先读取本文件；每完成一个任务，必须更新状态并本地提交。GitHub 推送若失败，记录 `push_pending` 后继续推进。
 
@@ -57,6 +57,7 @@
 | P6-11 | done | Phase 6 | 修正早盘买卖计划价格口径风险 | 当入场价来自未复权竞价画像且日 K 为复权口径时，止损/止盈改用百分比兜底并输出风险提示 | P6-10 |
 | P6-12 | done | Phase 6 | 增加早盘竞价实时监控与本地增量缓存 | 支持批量拉取当日竞价分钟、生成 `akshare_live` 画像、补充前一交易日前置 raw 日 K 上下文，并提供 CLI/Web 入口和测试 | P6-10 |
 | P6-13 | done | Phase 6 | Web 端预约早盘竞价监控 | 普通模式和专业模式支持前一晚启动后台任务，先补前置 raw 日 K，再等待到 09:25 后抓取当日竞价，支持任务状态查询 | P6-12 |
+| P6-14 | done | Phase 6 | 多目标早盘策略优化与止盈止损展示 | 支持 `research optimize-morning-strategies`、按需导入 `cache/jingjia` 历史竞价、三周期三目标 profile、`screen morning --objective all` 三组候选和 Web 展示止损/减仓/止盈/最长持有 | P6-10, P6-13 |
 
 ## 完成记录
 
@@ -95,3 +96,4 @@
 - 2026-06-10 21:49 CST：审计早盘真实缓存 smoke 时发现竞价价为未复权口径、日 K 默认为 `hfq`，直接用复权 ATR 计算止损/止盈会产生不合理计划；已修正为价格口径不一致时使用周期百分比兜底，并在风险提示和 README 中说明；已通过 `compileall`、`unittest` 99 项、真实缓存 `screen morning` smoke 和 `/tmp` 小型 `auction-rolling` smoke。
 - 2026-06-10 22:23 CST：完成早盘竞价实时监控与增量缓存，新增 `data monitor-auction`、SQLite `auction_minutes` 原始分钟表、`AuctionMonitorConfig`/`monitor_live_auction`、Web action `data_monitor_auction`；监控任务只写交易日当天竞价和 D 日之前 raw 日 K 上下文，单只失败不中断，已有上下文不重复拉取；已通过局部测试和 CLI help 验证。
 - 2026-06-10 22:47 CST：补齐 Web 端预约早盘竞价监控，新增 `data_schedule_auction_monitor` 和 `data_auction_monitor_job` action；普通模式新增“预约竞价”卡片，专业模式新增预约/查看任务按钮；后台任务先补前置 raw 日 K，再等待到指定时间抓取竞价，任务状态可显示 `preloading_daily`、`waiting`、`running_auction`、`complete` 或 `failed`。
+- 2026-06-10 23:51 CST：完成多目标早盘策略优化与止盈止损展示，新增 `research optimize-morning-strategies`、`configs/morning_strategy_profiles.json`、Web action `optimize_morning_strategies` 和 `screen morning --objective all` 三目标候选；优化前会按 provider 检查竞价画像覆盖，缺失时从 `cache/jingjia/*.rar` 导入；候选必须达到对应 profile 最低分且 profile 合格，否则返回空组和“不硬选”原因；买卖计划展示 profile 对应的止损、减仓、止盈、最长持有和风险收益比；已通过 112 项单元测试、CLI help/version、真实缓存三目标选股 smoke 和 `/tmp` 小样本优化 smoke。

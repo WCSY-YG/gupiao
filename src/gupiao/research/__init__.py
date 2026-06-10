@@ -24,6 +24,14 @@ from gupiao.research.experiments import (
     split_train_validation,
     train_linear_baseline,
 )
+from gupiao.research.morning_optimization import (
+    MorningOptimizationConfig,
+    MorningOptimizationMetrics,
+    MorningOptimizedProfile,
+    MorningStrategyOptimizationResult,
+    MorningStrategyVariant,
+    run_morning_strategy_optimization,
+)
 
 __all__ = [
     "AuctionStrategyComparisonConfig",
@@ -34,6 +42,11 @@ __all__ = [
     "AuctionRollingValidationResult",
     "AuctionRollingWindow",
     "LinearBaselineModel",
+    "MorningOptimizationConfig",
+    "MorningOptimizationMetrics",
+    "MorningOptimizedProfile",
+    "MorningStrategyOptimizationResult",
+    "MorningStrategyVariant",
     "Prediction",
     "ResearchSample",
     "allocate_by_score",
@@ -44,6 +57,7 @@ __all__ = [
     "run_auction_rolling_validation",
     "predict_linear_baseline",
     "run_auction_strategy_comparison",
+    "run_morning_strategy_optimization",
     "split_train_validation",
     "train_linear_baseline",
 ]

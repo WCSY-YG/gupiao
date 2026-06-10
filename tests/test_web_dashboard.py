@@ -13,6 +13,7 @@ from gupiao.web import build_app_html, build_dashboard_html, run_web_action, wri
 from tests.test_backtest_engine import replace_price, small_strategy
 from tests.test_cli_workflows import write_bars_jsonl
 from tests.test_morning_workflow import auction_profile
+from tests.test_morning_optimization import seed_optimization_store
 from tests.test_screening_strategy import breakout_bars
 
 
@@ -74,6 +75,7 @@ class WebDashboardTest(TestCase):
         self.assertIn('data-action="data_schedule_auction_monitor"', html)
         self.assertIn('data-action="data_auction_monitor_job"', html)
         self.assertIn('data-action="auction_rolling"', html)
+        self.assertIn('data-action="optimize_morning_strategies"', html)
         self.assertIn('id="modeToggle"', html)
         self.assertIn('data-tab="home"', html)
         self.assertIn("普通模式", html)
@@ -229,3 +231,28 @@ class WebDashboardTest(TestCase):
             self.assertEqual(len(result["rolling"].windows), 1)
             self.assertEqual(len(result["rolling"].evaluations), 2)
             self.assertTrue(Path(result["public_summary"]["path"]).exists())
+
+    def test_run_web_action_optimize_morning_strategies(self) -> None:
+        with TemporaryDirectory() as directory:
+            db_path = f"{directory}/market.sqlite"
+            seed_optimization_store(SQLiteStore(db_path))
+
+            result = run_web_action(
+                "optimize_morning_strategies",
+                {
+                    "start": "2026-01-01",
+                    "end": "2026-01-10",
+                    "db_path": db_path,
+                    "output_dir": f"{directory}/generated",
+                    "public_summary": f"{directory}/summary.md",
+                    "profile_output": f"{directory}/profiles.json",
+                    "limit": "1",
+                    "min_trades": "1",
+                    "skip_auction_import": "true",
+                },
+                Path(directory),
+            )
+
+            self.assertEqual(len(result["morning_optimization"].profiles), 9)
+            self.assertTrue(Path(result["public_summary"]["path"]).exists())
+            self.assertTrue(Path(result["profile_output"]["path"]).exists())

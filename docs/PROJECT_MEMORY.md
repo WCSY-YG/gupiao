@@ -350,6 +350,19 @@ MVP 优先参考项目：
 - 设计边界：这是 Web 服务进程内的轻量后台线程，不是系统级定时器；浏览器可以不一直打开，但 `gupiao web serve` 进程必须持续运行到任务完成。服务重启后内存中的预约任务状态不会恢复；需要更强可靠性时再升级为持久化任务表或 cron/systemd。
 - 预约时仍坚持时间边界：前置日 K 只补 `trade_date` 之前的 raw 上下文；如果 AKShare 返回的竞价日期不是预约的 `trade_date`，监控结果会显示 `date_mismatch`，不会误写旧竞价为新竞价。
 
+## 2026-06-10 23:51 CST 早盘多目标优化记忆
+
+- 用户要求先整合 `cache/jingjia/*.rar` 中缺失竞价画像，再用更长样本优化短线/中短线/中线，并在候选里明确止损、减仓、止盈、最长持有和买入时点；本轮完成代码与接口补齐，没有启动全市场长优化。
+- 新增 `configs/morning_strategy_profiles.json`，保存 `short_term`、`mid_short_term`、`mid_term` 三个周期下 `balanced`、`win_rate`、`return` 三类 profile；每个 profile 包含策略 ID、策略参数、止损止盈参数、最低候选分、验证指标和是否合格。
+- 新增 `src/gupiao/research/morning_optimization.py` 和 CLI `research optimize-morning-strategies`：运行前按 provider 检查 `auction_profiles` 覆盖范围；若 `local_jingjia` 不覆盖目标区间且未跳过导入，会调用 `import_local_auction_cache` 从 `cache/jingjia` 导入；随后按验证月用之前 90 天训练/选参，生成三周期三目标 profile 和小型 Markdown 汇总。
+- `screen morning` 新增 `--objective balanced|win_rate|return|all` 和 `--profile-path`；`objective=all` 会一次返回三组 `objective_groups`。profile 不合格或候选分低于 `min_candidate_score` 时返回空数组和原因，明确“不硬选”。
+- `build_trade_plan` 现在支持 profile 覆盖 `max_holding_bars`、`stop_atr_multiple`、`take_profit_r_multiple`；早盘回测也会用传入的 `BacktestConfig` 生成对应买卖计划，避免优化参数和实际退出规则脱节。
+- Web 新增专业模式 action `optimize_morning_strategies`；普通模式的“开始选股”默认传 `objective=all`，结果摘要按稳健综合、高胜率、高收益三组展示代码、策略、分数、参考买入、止损、减仓、止盈、最长持有和风险收益比。
+- README 已补多目标早盘选股、优化命令、Web payload、产物边界和“不硬选”规则；不提交 RAR、SQLite、逐股明细或 `reports/generated` 大目录。
+- 已补测试覆盖三目标输出、不合格 profile 不硬选、profile 止损止盈贯穿、竞价覆盖前置检查、优化器小样本产物、CLI/Web action。
+- 已执行并通过验证：`conda run -n agent env PYTHONPATH=src python -m compileall -q src tests`、`conda run -n agent env PYTHONPATH=src python -m unittest discover -s tests`（112 项通过）、`conda run -n agent env PYTHONPATH=src python -m gupiao.cli --version`（输出 `0.2.0`）、`research optimize-morning-strategies --help`。
+- 真实缓存 smoke：`data status` 显示日 K 覆盖 `2023-06-12` 至 `2026-06-10`、竞价画像 `local_jingjia` 覆盖 `2026-05-06` 至 `2026-05-29`；`screen morning --trade-date 2026-05-29 --objective all --limit 30` 返回三目标分组，其中稳健综合因未达 68 分返回“不硬选”，高胜率命中 `000026`，高收益命中 `000027`，候选均带止损/减仓/止盈/最长持有；小样本优化 `--limit 5` 已写入 `/tmp/gupiao_morning_opt_smoke*`，未覆盖项目 profile。
+
 ## 注意事项
 
 - 当前项目定位为研究与辅助分析工具，不默认接入真实交易。

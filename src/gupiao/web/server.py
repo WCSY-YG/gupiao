@@ -45,12 +45,14 @@ from gupiao.reports import build_markdown_report, write_markdown_report
 from gupiao.research import (
     AuctionRollingValidationConfig,
     AuctionStrategyComparisonConfig,
+    MorningOptimizationConfig,
     ResearchSample,
     allocate_by_score,
     build_auction_research_samples,
     predict_linear_baseline,
     run_auction_rolling_validation,
     run_auction_strategy_comparison,
+    run_morning_strategy_optimization,
     split_train_validation,
     train_linear_baseline,
 )
@@ -216,6 +218,7 @@ def run_web_action(action: str, params: dict[str, Any], workspace: Path | None =
         "scan_market": action_scan_market,
         "auction_compare": action_auction_compare,
         "auction_rolling": action_auction_rolling,
+        "optimize_morning_strategies": action_optimize_morning_strategies,
         "factor_rank": action_factor_rank,
         "research_linear": action_research_linear,
         "auction_samples": action_auction_samples,
@@ -491,6 +494,8 @@ def action_morning_screen(params: dict[str, Any], workspace: Path) -> dict[str, 
             limit=int_param(params, "limit", 500),
             auction_provider=str_param(params, "auction_provider", "local_jingjia"),
             symbols=symbols,
+            objective=str_param(params, "objective", "balanced"),
+            profile_path=str_param(params, "profile_path", "configs/morning_strategy_profiles.json"),
         ),
         strategy=morning_strategy_from_params(params),
     )
@@ -803,6 +808,40 @@ def action_auction_rolling(params: dict[str, Any], workspace: Path) -> dict[str,
         "rolling": result,
         "public_summary": path_result(Path(result.public_summary_path)),
         "output_dir": str(result.output_dir),
+    }
+
+
+def action_optimize_morning_strategies(params: dict[str, Any], workspace: Path) -> dict[str, Any]:
+    config = MorningOptimizationConfig(
+        start=required_date(params, "start"),
+        end=required_date(params, "end"),
+        adjust=str_param(params, "adjust", "hfq"),
+        db_path=resolve_path(str_param(params, "db_path", "data/cache/market_scan.sqlite"), workspace),
+        auction_source_dir=resolve_path(str_param(params, "auction_source_dir", "cache/jingjia"), workspace),
+        auction_provider=str_param(params, "auction_provider", "local_jingjia"),
+        output_dir=resolve_path(
+            str_param(params, "output_dir", "reports/generated/morning_optimization/web"),
+            workspace,
+        ),
+        public_summary_path=resolve_path(
+            str_param(params, "public_summary", "reports/summaries/web_morning_optimization.md"),
+            workspace,
+        ),
+        profile_output_path=resolve_path(
+            str_param(params, "profile_output", "configs/morning_strategy_profiles.json"),
+            workspace,
+        ),
+        limit=int_param(params, "limit", None),
+        import_missing_auction=not bool_param(params, "skip_auction_import", False),
+        training_days=int_param(params, "training_days", 90) or 90,
+        min_trades=int_param(params, "min_trades", 10) or 10,
+    )
+    result = run_morning_strategy_optimization(config)
+    return {
+        "morning_optimization": result,
+        "public_summary": path_result(Path(result.public_summary_path)),
+        "profile_output": path_result(Path(result.profile_output_path)),
+        "result_path": path_result(Path(result.result_path)),
     }
 
 
@@ -1740,6 +1779,8 @@ APP_HTML = r"""<!doctype html>
                 <input name="limit" value="500">
                 <input name="lookback" value="180">
                 <input name="auction_provider" value="local_jingjia">
+                <input name="objective" value="all">
+                <input name="profile_path" value="configs/morning_strategy_profiles.json">
               </div>
               <div class="row">
                 <button type="button" data-action="morning_screen" data-form="homeCandidateForm">开始选股</button>
@@ -2002,6 +2043,29 @@ APP_HTML = r"""<!doctype html>
             </div>
           </form>
         </div>
+        <div class="panel">
+          <h2>早盘多目标优化</h2>
+          <form id="morningOptimizeForm" class="grid">
+            <div class="grid three">
+              <label>开始日期<input name="start" value="2024-01-01"></label>
+              <label>结束日期<input name="end" value="2026-05-29"></label>
+              <label>复权<input name="adjust" value="hfq"></label>
+              <label>DB 路径<input name="db_path" value="data/cache/market_scan.sqlite"></label>
+              <label>竞价缓存目录<input name="auction_source_dir" value="cache/jingjia"></label>
+              <label>竞价 provider<input name="auction_provider" value="local_jingjia"></label>
+              <label>输出目录<input name="output_dir" value="reports/generated/morning_optimization/web"></label>
+              <label>公开汇总<input name="public_summary" value="reports/summaries/web_morning_optimization.md"></label>
+              <label>Profile 输出<input name="profile_output" value="configs/morning_strategy_profiles.json"></label>
+              <label>Limit<input name="limit" value="100"></label>
+              <label>训练天数<input name="training_days" value="90"></label>
+              <label>最小交易数<input name="min_trades" value="10"></label>
+              <label>跳过竞价导入<select name="skip_auction_import"><option value="false">false</option><option value="true">true</option></select></label>
+            </div>
+            <div class="row">
+              <button type="button" data-action="optimize_morning_strategies" data-form="morningOptimizeForm">优化早盘策略</button>
+            </div>
+          </form>
+        </div>
       </section>
       <section id="research" class="advanced-only">
         <div class="panel">
@@ -2226,6 +2290,8 @@ APP_HTML = r"""<!doctype html>
         summary.innerHTML = auctionMonitorJobsSummary(result.auction_monitor_jobs);
       } else if (result.rolling) {
         summary.innerHTML = rollingSummary(result);
+      } else if (result.morning_optimization) {
+        summary.innerHTML = morningOptimizationSummary(result);
       } else if (result.strategies) {
         summary.innerHTML = strategySummary(result.strategies);
       } else {
@@ -2300,6 +2366,9 @@ APP_HTML = r"""<!doctype html>
     }
 
     function morningScreenSummary(screen) {
+      if (screen.objective_groups && screen.objective_groups.length) {
+        return screen.objective_groups.map((group) => morningObjectiveGroupSummary(group, screen)).join("");
+      }
       const rows = (screen.candidates || []).slice(0, 10);
       const tableRows = rows.map((row, index) => {
         const candidate = row.candidate || {};
@@ -2317,6 +2386,26 @@ APP_HTML = r"""<!doctype html>
       ]) + table);
     }
 
+    function morningObjectiveGroupSummary(group, screen) {
+      const rows = (group.candidates || []).slice(0, 10);
+      const tableRows = rows.map((row, index) => {
+        const candidate = row.candidate || {};
+        const plan = row.trade_plan || {};
+        return `<tr><td>${index + 1}</td><td>${escapeHtml(row.symbol || "")}</td><td>${escapeHtml(row.name || "")}</td><td>${escapeHtml(candidate.strategy || "")}</td><td>${candidate.score ?? "-"}</td><td>${formatPrice(plan.reference_entry_price)}</td><td>${formatPrice(plan.stop_loss)}</td><td>${formatPrice(plan.reduce_price)}</td><td>${formatPrice(plan.take_profit)}</td><td>${plan.max_holding_bars ?? "-"}</td><td>${plan.risk_reward_ratio ?? "-"}</td></tr>`;
+      }).join("");
+      const empty = group.reason ? `<div class="summary-item"><strong>不硬选</strong>${escapeHtml(group.reason)}</div>` : `<div class="summary-item"><strong>0</strong>暂无候选</div>`;
+      const table = tableRows ? `<table><thead><tr><th>#</th><th>代码</th><th>名称</th><th>策略</th><th>分数</th><th>买入</th><th>止损</th><th>减仓</th><th>止盈</th><th>最长</th><th>盈亏比</th></tr></thead><tbody>${tableRows}</tbody></table>` : empty;
+      const metrics = group.profile_metrics || {};
+      return card(group.label || group.objective || "目标", grid([
+        ["交易日", screen.config ? screen.config.trade_date : "-"],
+        ["策略", group.strategy_id || "-"],
+        ["最低分", group.min_candidate_score ?? "-"],
+        ["候选", group.candidate_count ?? "-"],
+        ["profile胜率", formatPct(metrics.win_rate)],
+        ["profile均收益", formatPct(metrics.avg_trade_return)]
+      ]) + table);
+    }
+
     function tradePlanSummary(result) {
       const plan = result.trade_plan || {};
       const candidate = result.candidate || {};
@@ -2330,7 +2419,10 @@ APP_HTML = r"""<!doctype html>
         ["策略", result.strategy_id || candidate.strategy || "-"],
         ["参考买入", formatPrice(plan.reference_entry_price)],
         ["止损", formatPrice(plan.stop_loss)],
-        ["止盈", formatPrice(plan.take_profit)]
+        ["减仓", formatPrice(plan.reduce_price)],
+        ["止盈", formatPrice(plan.take_profit)],
+        ["最长持有", plan.max_holding_bars ?? "-"],
+        ["风险收益比", plan.risk_reward_ratio ?? "-"]
       ]) + details + lists);
     }
 
@@ -2347,6 +2439,23 @@ APP_HTML = r"""<!doctype html>
         ["评估数", evaluations.length || "-"],
         ["输出目录", result.output_dir || "-"]
       ]) + link + table);
+    }
+
+    function morningOptimizationSummary(result) {
+      const optimization = result.morning_optimization || {};
+      const profiles = optimization.profiles || [];
+      const rows = profiles.map((profile) => {
+        const metrics = profile.metrics || {};
+        return `<tr><td>${escapeHtml(profile.horizon || "")}</td><td>${escapeHtml(profile.objective || "")}</td><td>${escapeHtml(profile.strategy_id || "")}</td><td>${profile.qualified ? "yes" : "no"}</td><td>${formatPct(metrics.win_rate)}</td><td>${formatPct(metrics.avg_trade_return)}</td><td>${formatPct(metrics.total_return)}</td><td>${formatPct(metrics.max_drawdown)}</td><td>${metrics.trade_count ?? "-"}</td><td>${profile.min_candidate_score ?? "-"}</td></tr>`;
+      }).join("");
+      const table = rows ? `<table><thead><tr><th>周期</th><th>目标</th><th>策略</th><th>合格</th><th>胜率</th><th>均收益</th><th>总收益</th><th>回撤</th><th>交易</th><th>最低分</th></tr></thead><tbody>${rows}</tbody></table>` : "";
+      const summaryLink = result.public_summary && result.public_summary.url ? `<div class="summary-item"><strong>公开汇总</strong><a href="${result.public_summary.url}" target="_blank">${escapeHtml(result.public_summary.path || "打开")}</a></div>` : "";
+      const profileLink = result.profile_output && result.profile_output.url ? `<div class="summary-item"><strong>Profile</strong><a href="${result.profile_output.url}" target="_blank">${escapeHtml(result.profile_output.path || "打开")}</a></div>` : "";
+      return card("早盘多目标优化", grid([
+        ["Profile 数", profiles.length || "-"],
+        ["开始", optimization.started_at || "-"],
+        ["结束", optimization.finished_at || "-"]
+      ]) + summaryLink + profileLink + table);
     }
 
     function analysisSummary(result) {

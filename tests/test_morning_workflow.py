@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
@@ -62,6 +64,7 @@ class MorningWorkflowTest(TestCase):
             self.assertIn("09:25", row.trade_plan.entry_timing)
             self.assertEqual(row.trade_plan.entry_price_source, "auction_indicative_price")
             self.assertAlmostEqual(row.trade_plan.stop_loss or 0.0, 12.2555)
+            self.assertAlmostEqual(row.trade_plan.risk_reward_ratio or 0.0, 1.5)
             self.assertTrue(
                 any("未复权口径" in note for note in row.trade_plan.risk_notes)
             )
@@ -146,6 +149,69 @@ class MorningWorkflowTest(TestCase):
         self.assertAlmostEqual(result.trades[0].entry_price, 12.6 * 1.001)
         self.assertTrue(any("trade-date open" in item for item in result.assumptions))
 
+    def test_objective_all_returns_groups_and_profile_trade_plan_values(self) -> None:
+        with TemporaryDirectory() as directory:
+            store = SQLiteStore(f"{directory}/morning.sqlite")
+            profile_path = Path(directory) / "profiles.json"
+            bars = breakout_bars()
+            trade_date = bars[-1].trade_date + timedelta(days=1)
+            store.upsert_instruments([Instrument(symbol="000001", name="平安银行", market="A股")])
+            store.upsert_daily_bars(bars)
+            store.upsert_auction_profiles([auction_profile("000001", trade_date)])
+            write_morning_profiles(profile_path, min_candidate_score=0.0)
+
+            result = run_morning_screen(
+                config=MorningScreenConfig(
+                    db_path=store.path,
+                    trade_date=trade_date,
+                    horizon="short_term",
+                    symbols=("000001",),
+                    objective="all",
+                    profile_path=profile_path,
+                ),
+                store=store,
+            )
+
+            self.assertEqual(
+                [group.objective for group in result.objective_groups],
+                ["balanced", "win_rate", "return"],
+            )
+            self.assertEqual(result.candidate_count, 3)
+            balanced = result.objective_groups[0]
+            self.assertEqual(balanced.candidate_count, 1)
+            plan = balanced.candidates[0].trade_plan
+            assert plan is not None
+            self.assertEqual(plan.max_holding_bars, 4)
+            self.assertAlmostEqual(plan.risk_reward_ratio or 0.0, 1.8)
+            self.assertAlmostEqual(plan.stop_loss or 0.0, 12.2555)
+
+    def test_objective_group_does_not_hard_select_unqualified_profile(self) -> None:
+        with TemporaryDirectory() as directory:
+            store = SQLiteStore(f"{directory}/morning.sqlite")
+            profile_path = Path(directory) / "profiles.json"
+            bars = breakout_bars()
+            trade_date = bars[-1].trade_date + timedelta(days=1)
+            store.upsert_instruments([Instrument(symbol="000001", name="平安银行", market="A股")])
+            store.upsert_daily_bars(bars)
+            store.upsert_auction_profiles([auction_profile("000001", trade_date)])
+            write_morning_profiles(profile_path, min_candidate_score=0.0, qualified=False)
+
+            result = run_morning_screen(
+                config=MorningScreenConfig(
+                    db_path=store.path,
+                    trade_date=trade_date,
+                    horizon="short_term",
+                    symbols=("000001",),
+                    objective="balanced",
+                    profile_path=profile_path,
+                ),
+                store=store,
+            )
+
+            self.assertEqual(result.candidate_count, 0)
+            self.assertEqual(result.objective_groups[0].candidate_count, 0)
+            self.assertIn("不硬选", result.objective_groups[0].reason or "")
+
 
 def auction_profile(symbol: str, trade_date: date) -> AuctionProfile:
     return AuctionProfile(
@@ -209,3 +275,47 @@ def trend_quality_bars(symbol: str, start: date, *, count: int) -> list[DailyBar
             )
         )
     return bars
+
+
+def write_morning_profiles(
+    path: Path,
+    *,
+    min_candidate_score: float,
+    qualified: bool = True,
+) -> None:
+    profile = {
+        "strategy_id": "auction_open_breakout_short",
+        "parameters": {
+            "short_window": 3,
+            "medium_window": 5,
+            "long_window": 8,
+            "volume_window": 5,
+            "min_auction_score": 55.0,
+            "auction_score_weight": 0.35,
+        },
+        "backtest": {
+            "max_holding_bars": 4,
+            "stop_atr_multiple": 1.2,
+            "take_profit_r_multiple": 1.8,
+        },
+        "min_candidate_score": min_candidate_score,
+        "qualified": qualified,
+        "metrics": {
+            "win_rate": 0.52,
+            "avg_trade_return": 0.01,
+            "total_return": 0.03,
+            "max_drawdown": -0.05,
+            "trade_count": 12,
+        },
+    }
+    objectives = {}
+    for objective in ("balanced", "win_rate", "return"):
+        objectives[objective] = {
+            **profile,
+            "objective": objective,
+            "horizon": "short_term",
+        }
+    path.write_text(
+        json.dumps({"profiles": {"short_term": objectives}}, ensure_ascii=False),
+        encoding="utf-8",
+    )

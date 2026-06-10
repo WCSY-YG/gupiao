@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 
 from gupiao.data import AuctionProfile, DailyBar
@@ -51,6 +51,7 @@ class TradePlan:
     stop_loss: float | None
     take_profit: float | None
     reduce_price: float | None
+    risk_reward_ratio: float | None
     max_holding_bars: int
     confidence: float
     buy_conditions: tuple[str, ...]
@@ -133,11 +134,30 @@ def build_trade_plan(
     auction_profile: AuctionProfile | None = None,
     reference_entry_price: float | None = None,
     entry_price_source: str | None = None,
+    max_holding_bars: int | None = None,
+    stop_atr_multiple: float | None = None,
+    fallback_stop_pct: float | None = None,
+    take_profit_r_multiple: float | None = None,
 ) -> TradePlan:
     if decision_time not in DECISION_TIMES:
         choices = ", ".join(DECISION_TIMES)
         raise ValueError(f"unknown decision_time '{decision_time}', expected one of: {choices}")
-    profile = horizon_profile(horizon)
+    base_profile = horizon_profile(horizon)
+    profile = replace(
+        base_profile,
+        max_holding_bars=max_holding_bars
+        if max_holding_bars is not None
+        else base_profile.max_holding_bars,
+        stop_atr_multiple=stop_atr_multiple
+        if stop_atr_multiple is not None
+        else base_profile.stop_atr_multiple,
+        fallback_stop_pct=fallback_stop_pct
+        if fallback_stop_pct is not None
+        else base_profile.fallback_stop_pct,
+        take_profit_r_multiple=take_profit_r_multiple
+        if take_profit_r_multiple is not None
+        else base_profile.take_profit_r_multiple,
+    )
     ordered = sorted(bars, key=lambda item: item.trade_date)
     latest = ordered[-1] if ordered else None
     effective_signal_date = signal_date or candidate.trade_date
@@ -154,6 +174,7 @@ def build_trade_plan(
         price_source = "unavailable"
 
     stop_loss = take_profit = reduce_price = None
+    risk_reward_ratio = None
     if entry_price is not None and entry_price > 0:
         scale_mismatch = price_scale_mismatch(price_source, latest)
         stop_distance = stop_distance_for_bars(
@@ -166,6 +187,7 @@ def build_trade_plan(
         stop_loss = round(entry_price - stop_distance, 4)
         take_profit = round(entry_price + stop_distance * profile.take_profit_r_multiple, 4)
         reduce_price = round(entry_price + stop_distance, 4)
+        risk_reward_ratio = round(profile.take_profit_r_multiple, 2)
     else:
         scale_mismatch = False
 
@@ -184,6 +206,7 @@ def build_trade_plan(
         stop_loss=stop_loss,
         take_profit=take_profit,
         reduce_price=reduce_price,
+        risk_reward_ratio=risk_reward_ratio,
         max_holding_bars=profile.max_holding_bars,
         confidence=round(max(0.0, min(candidate.score, 100.0)), 2),
         buy_conditions=buy_conditions(decision_time, profile, auction_profile),

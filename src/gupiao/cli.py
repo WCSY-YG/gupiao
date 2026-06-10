@@ -29,8 +29,10 @@ from gupiao.reports import build_markdown_report, write_markdown_report
 from gupiao.research import (
     AuctionRollingValidationConfig,
     AuctionStrategyComparisonConfig,
+    MorningOptimizationConfig,
     run_auction_rolling_validation,
     run_auction_strategy_comparison,
+    run_morning_strategy_optimization,
 )
 from gupiao.scan import DEFAULT_SCAN_END, DEFAULT_SCAN_START, MarketScanConfig, run_market_scan
 from gupiao.signals import build_breakout_signal
@@ -351,6 +353,31 @@ def build_parser() -> argparse.ArgumentParser:
     add_backtest_args(auction_rolling)
     auction_rolling.set_defaults(handler=handle_research_auction_rolling)
 
+    morning_optimize = research_subparsers.add_parser(
+        "optimize-morning-strategies",
+        help="Optimize short/mid-short/mid-term morning strategies for multiple objectives.",
+    )
+    morning_optimize.add_argument("--start", required=True, type=parse_cli_date)
+    morning_optimize.add_argument("--end", required=True, type=parse_cli_date)
+    morning_optimize.add_argument("--adjust", choices=["raw", "qfq", "hfq"], default="hfq")
+    morning_optimize.add_argument("--db", default="data/cache/market_scan.sqlite")
+    morning_optimize.add_argument("--auction-source", default="cache/jingjia")
+    morning_optimize.add_argument("--auction-provider", default="local_jingjia")
+    morning_optimize.add_argument("--output", default="reports/generated/morning_optimization/latest")
+    morning_optimize.add_argument(
+        "--public-summary",
+        default="reports/summaries/latest_morning_optimization.md",
+    )
+    morning_optimize.add_argument(
+        "--profile-output",
+        default="configs/morning_strategy_profiles.json",
+    )
+    morning_optimize.add_argument("--limit", type=positive_int, default=None)
+    morning_optimize.add_argument("--training-days", type=positive_int, default=90)
+    morning_optimize.add_argument("--min-trades", type=positive_int, default=10)
+    morning_optimize.add_argument("--skip-auction-import", action="store_true")
+    morning_optimize.set_defaults(handler=handle_research_optimize_morning)
+
     scan_parser = subparsers.add_parser("scan", help="Run market-wide automation tasks.")
     scan_subparsers = scan_parser.add_subparsers(dest="scan_command", required=True)
     scan_market = scan_subparsers.add_parser(
@@ -582,6 +609,8 @@ def handle_screen_morning(args: argparse.Namespace) -> None:
             limit=args.limit,
             auction_provider=args.auction_provider,
             symbols=tuple(args.symbol),
+            objective=args.objective,
+            profile_path=args.profile_path,
         ),
         strategy=morning_strategy_from_args(args),
     )
@@ -829,6 +858,39 @@ def handle_research_auction_rolling(args: argparse.Namespace) -> None:
     )
 
 
+def handle_research_optimize_morning(args: argparse.Namespace) -> None:
+    result = run_morning_strategy_optimization(
+        MorningOptimizationConfig(
+            start=args.start,
+            end=args.end,
+            adjust=args.adjust,
+            db_path=args.db,
+            auction_source_dir=args.auction_source,
+            auction_provider=args.auction_provider,
+            output_dir=args.output,
+            public_summary_path=args.public_summary,
+            profile_output_path=args.profile_output,
+            limit=args.limit,
+            import_missing_auction=not args.skip_auction_import,
+            training_days=args.training_days,
+            min_trades=args.min_trades,
+        )
+    )
+    write_json_object(
+        {
+            "morning_optimization": {
+                "started_at": result.started_at,
+                "finished_at": result.finished_at,
+                "profiles": result.profiles,
+                "auction_import": result.auction_import,
+                "result_path": result.result_path,
+                "public_summary": result.public_summary_path,
+                "profile_output": result.profile_output_path,
+            }
+        }
+    )
+
+
 def handle_scan_market(args: argparse.Namespace) -> None:
     config = MarketScanConfig(
         start=args.start,
@@ -894,6 +956,12 @@ def add_morning_screen_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--limit", type=positive_int, default=500)
     parser.add_argument("--symbol", action="append", default=[])
     parser.add_argument("--auction-provider", default="local_jingjia")
+    parser.add_argument(
+        "--objective",
+        choices=["balanced", "win_rate", "return", "all"],
+        default="balanced",
+    )
+    parser.add_argument("--profile-path", default="configs/morning_strategy_profiles.json")
     add_strategy_args(parser, default=None)
 
 

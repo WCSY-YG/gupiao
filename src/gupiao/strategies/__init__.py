@@ -17,6 +17,8 @@ from gupiao.strategies.screening import (
     score_with_auction,
 )
 from gupiao.strategies.morning import (
+    MorningObjectiveGroup,
+    MorningObjectiveProfile,
     MorningScreenConfig,
     MorningScreenResult,
     MorningScreenRow,
@@ -42,6 +44,8 @@ __all__ = [
     "MomentumPullbackStrategy",
     "MovingAverageVolumeBreakoutStrategy",
     "MorningScreenConfig",
+    "MorningObjectiveGroup",
+    "MorningObjectiveProfile",
     "MorningScreenResult",
     "MorningScreenRow",
     "ScreeningCandidate",

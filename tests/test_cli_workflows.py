@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from contextlib import redirect_stdout
-from datetime import timedelta
+from datetime import date, timedelta
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -12,6 +12,7 @@ from gupiao.cli import main, to_jsonable
 from gupiao.data import Instrument, SQLiteStore
 
 from tests.test_morning_workflow import auction_profile
+from tests.test_morning_optimization import seed_optimization_store
 from tests.test_screening_strategy import breakout_bars
 
 
@@ -213,6 +214,41 @@ class CliWorkflowsTest(TestCase):
             )
             self.assertEqual(json.loads(plan)["status"], "candidate")
             self.assertIn("09:25", json.loads(plan)["trade_plan"]["entry_timing"])
+
+    def test_optimize_morning_strategies_cli(self) -> None:
+        with TemporaryDirectory() as directory:
+            db_path = f"{directory}/market.sqlite"
+            store = SQLiteStore(db_path)
+            seed_optimization_store(store)
+
+            output = run_cli(
+                [
+                    "research",
+                    "optimize-morning-strategies",
+                    "--start",
+                    date(2026, 1, 1).isoformat(),
+                    "--end",
+                    date(2026, 1, 10).isoformat(),
+                    "--db",
+                    db_path,
+                    "--output",
+                    f"{directory}/generated",
+                    "--public-summary",
+                    f"{directory}/summary.md",
+                    "--profile-output",
+                    f"{directory}/profiles.json",
+                    "--limit",
+                    "1",
+                    "--min-trades",
+                    "1",
+                    "--skip-auction-import",
+                ]
+            )
+
+            payload = json.loads(output)["morning_optimization"]
+            self.assertEqual(len(payload["profiles"]), 9)
+            self.assertTrue(Path(payload["public_summary"]).exists())
+            self.assertTrue(Path(payload["profile_output"]).exists())
 
 
 def run_cli(args: list[str]) -> str:

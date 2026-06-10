@@ -29,6 +29,7 @@ A 股选股、买卖点分析、竞价数据增强与量化研究辅助工具。
 
 - 早盘优先选股：`screen morning` 使用交易日当天竞价画像和前一交易日及以前的日 K，在开盘前输出候选。
 - 多周期策略：支持 `short_term` 短线、`mid_short_term` 中短线、`mid_term` 中线；短线强依赖竞价，中线弱化竞价。
+- 多目标候选：早盘选股支持 `balanced` 稳健综合、`win_rate` 高胜率、`return` 高收益和 `all` 三组同时输出；不达最低合格线时返回空组并说明“不硬选”。
 - 多策略选股：支持短线竞价开盘突破、短线竞价温和缺口修复、中短线放量突破、中短线回踩修复、中线趋势质量，以及旧版均线/回踩/低波动策略。
 - 策略注册表：`screen list` 可列出策略 ID、分类、周期、决策时点、入场时点和是否需要竞价画像，便于 Web 下拉框直接消费。
 - 按日期选股：`--as-of YYYY-MM-DD` 只使用该日期及之前的日 K 和竞价画像，避免未来函数。
@@ -63,6 +64,7 @@ A 股选股、买卖点分析、竞价数据增强与量化研究辅助工具。
 - 组合权重研究：支持按预测评分选 Top N，并做权重上限控制。
 - 竞价增强近期验证：已用 `2026-01-01` 至 `2026-05-29` 日 K 和 `2026-05` 本地竞价画像完成一次 baseline vs auction 对比。
 - 竞价参数滚动验证：`research auction-rolling` 可按月份对不同 `min_auction_score` 和 `auction_score_weight` 做滚动对比，形成更稳健的参数建议。
+- 早盘多目标优化：`research optimize-morning-strategies` 会先检查 `local_jingjia` 竞价画像覆盖，必要时从 `cache/jingjia/*.rar` 导入，再对三类周期分别生成稳健、高胜率、高收益 profile。
 
 ### 项目规划、skills 与自动化
 
@@ -100,6 +102,7 @@ A 股选股、买卖点分析、竞价数据增强与量化研究辅助工具。
 | `scan market` | 运行可恢复全市场扫描 | JSONL + Markdown 汇总 |
 | `research auction-compare` | 对比纯 K 线和竞价增强策略 | JSONL + Markdown 汇总 |
 | `research auction-rolling` | 多月份滚动验证竞价阈值和权重 | JSONL + Markdown 汇总 |
+| `research optimize-morning-strategies` | 优化早盘三周期三目标策略 profile | JSON + Markdown 汇总 + profile 配置 |
 
 ### 目前不做的事情
 
@@ -403,6 +406,26 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli screen morning \
   --auction-provider local_jingjia
 ```
 
+三目标同时输出，适合 Web 普通模式直接展示“稳健综合 / 高胜率 / 高收益”三组：
+
+```bash
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli screen morning \
+  --db data/cache/market_scan.sqlite \
+  --trade-date 2026-05-29 \
+  --horizon short_term \
+  --objective all \
+  --profile-path configs/morning_strategy_profiles.json \
+  --top 20 \
+  --limit 500 \
+  --auction-provider local_jingjia
+```
+
+输出规则：
+
+- `objective_groups` 会分别包含 `balanced`、`win_rate`、`return`。
+- 每组都会按对应 profile 的 `min_candidate_score` 过滤；profile 不合格或候选不过线时，返回空数组和原因，不会硬凑股票。
+- 每只候选都带 `trade_plan`，包括买入时点、参考买入、止损、减仓、止盈、最长持有、风险收益比和不买条件。
+
 查看单只股票的早盘买卖计划：
 
 ```bash
@@ -494,7 +517,7 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli web serve --host 127.
 
 - `查看缓存`：查看日 K 和竞价缓存覆盖日期。
 - `预约竞价`：前一天晚上或竞价前启动后台任务，先补交易日前置 raw 日 K，等到指定时间后抓取当日竞价并写入本地缓存。
-- `开始选股`：按交易日期和周期运行早盘选股，默认用本地 `local_jingjia` 竞价画像。
+- `开始选股`：按交易日期和周期运行早盘选股，默认用本地 `local_jingjia` 竞价画像，并按稳健综合、高胜率、高收益三组展示候选和买卖计划。
 - `查看计划`：对单只股票生成早盘买卖计划，直接显示买入时点、参考价、止损、止盈和不买条件。
 - `查看缺口`：dry-run 查看日 K 缓存缺少哪些交易日。
 
@@ -590,7 +613,9 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli web serve --host 127.
     "top": 20,
     "limit": 500,
     "adjust": "hfq",
-    "auction_provider": "local_jingjia"
+    "auction_provider": "local_jingjia",
+    "objective": "all",
+    "profile_path": "configs/morning_strategy_profiles.json"
   }
 }
 ```
@@ -627,6 +652,25 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli web serve --host 127.
 
 ```json
 {
+  "action": "optimize_morning_strategies",
+  "params": {
+    "db_path": "data/cache/market_scan.sqlite",
+    "auction_source_dir": "cache/jingjia",
+    "start": "2024-01-01",
+    "end": "2026-05-29",
+    "auction_provider": "local_jingjia",
+    "limit": 100,
+    "training_days": 90,
+    "min_trades": 10,
+    "output_dir": "reports/generated/morning_optimization/web",
+    "public_summary": "reports/summaries/web_morning_optimization.md",
+    "profile_output": "configs/morning_strategy_profiles.json"
+  }
+}
+```
+
+```json
+{
   "action": "auction_rolling",
   "params": {
     "db_path": "data/cache/market_scan.sqlite",
@@ -643,7 +687,7 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli web serve --host 127.
 }
 ```
 
-早盘主流程 action 为 `morning_screen` 和 `trade_plan`；竞价参数研究 action 为 `auction_compare` 和 `auction_rolling`；收盘后研究类 action（`quick_analysis`、`screen_breakout`、`signal_breakout`、`backtest_breakout`、`report_breakout`、`dashboard`）继续保留，并支持 `strategy_id`、`as_of`、`lookback`、`auction_provider`。Web 表单已经提供普通模式和专业模式两套入口。
+早盘主流程 action 为 `morning_screen` 和 `trade_plan`；竞价参数研究 action 为 `auction_compare`、`auction_rolling` 和 `optimize_morning_strategies`；收盘后研究类 action（`quick_analysis`、`screen_breakout`、`signal_breakout`、`backtest_breakout`、`report_breakout`、`dashboard`）继续保留，并支持 `strategy_id`、`as_of`、`lookback`、`auction_provider`。Web 表单已经提供普通模式和专业模式两套入口。
 
 ### 导入本地日 K 缓存
 
@@ -817,6 +861,53 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli research auction-roll
 - `reports/summaries/latest_auction_rolling.md`：可提交的小型汇总，包含参数稳定性排名、正向窗口比例和风险提示。
 - 如果最佳参数的平均收益差为正、且正向窗口比例达到 60% 以上，只作为下一轮实验配置；普通模式仍不默认启用竞价硬过滤。
 
+### 优化早盘多目标策略
+
+当短线、中短线、中线策略需要重新评估时，使用早盘多目标优化入口。它会先检查 SQLite 中 `auction_profiles` 的 `local_jingjia` 覆盖范围；如果目标区间缺失，会先尝试从 `cache/jingjia/*.rar` 导入对应竞价画像，再做 walk-forward 回测。
+
+小样本 smoke：
+
+```bash
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli research optimize-morning-strategies \
+  --start 2024-01-01 \
+  --end 2026-05-29 \
+  --db data/cache/market_scan.sqlite \
+  --auction-source cache/jingjia \
+  --auction-provider local_jingjia \
+  --limit 100 \
+  --output /tmp/gupiao_morning_optimization \
+  --public-summary /tmp/gupiao_morning_optimization.md \
+  --profile-output /tmp/morning_strategy_profiles.json
+```
+
+确认 smoke 没问题后，再写入项目 profile：
+
+```bash
+conda run -n agent env PYTHONPATH=src python -m gupiao.cli research optimize-morning-strategies \
+  --start 2024-01-01 \
+  --end 2026-05-29 \
+  --db data/cache/market_scan.sqlite \
+  --auction-source cache/jingjia \
+  --auction-provider local_jingjia \
+  --output reports/generated/morning_optimization/latest \
+  --public-summary reports/summaries/latest_morning_optimization.md \
+  --profile-output configs/morning_strategy_profiles.json
+```
+
+优化输出：
+
+- `configs/morning_strategy_profiles.json`：早盘选股使用的三周期三目标 profile，小文件，可以提交。
+- `reports/summaries/latest_morning_optimization.md`：小型公开汇总，包含胜率、平均单笔收益、总收益、最大回撤、交易数和是否合格，可以提交。
+- `reports/generated/morning_optimization/latest/`：完整本地研究产物，不提交。
+- `data/cache/market_scan.sqlite`、`cache/jingjia/*.rar` 和逐股明细不提交。
+
+策略选择规则：
+
+- `balanced`：要求交易数达标、平均单笔收益为正、回撤受控，按综合分选 profile。
+- `win_rate`：优先胜率，其次平均单笔收益；平均收益不为正则不合格。
+- `return`：优先平均单笔收益和总收益；平均收益为负的 profile 不会入选。
+- 只有合格 profile 且候选分达到 `min_candidate_score` 时才输出股票；否则 Web 和 CLI 都会显示空组和“不硬选”原因。
+
 ## 推荐工作流
 
 1. 安装开发依赖和数据依赖。
@@ -835,7 +926,8 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli research auction-roll
 14. 用 `scan market` 批量扫描全 A 股，并提交小型汇总。
 15. 用 `research auction-compare` 对比竞价增强策略并更新 skill 阈值建议。
 16. 用 `research auction-rolling` 滚动验证不同竞价阈值和权重。
-17. 扩展策略、指标、因子或报告模板，并补充测试。
+17. 用 `research optimize-morning-strategies` 更新早盘三周期三目标 profile。
+18. 扩展策略、指标、因子或报告模板，并补充测试。
 
 ## 项目文档
 

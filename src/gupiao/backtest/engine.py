@@ -279,6 +279,9 @@ def run_morning_plan_backtest(
                         auction_profile=auction_profile,
                         reference_entry_price=bar.open,
                         entry_price_source="daily_open",
+                        max_holding_bars=config.max_holding_bars,
+                        stop_atr_multiple=config.stop_atr_multiple,
+                        take_profit_r_multiple=config.take_profit_r_multiple,
                     )
                     entry_price = apply_buy_slippage(bar.open, config)
                     quantity, cash, entry_cash = open_position(cash, entry_price, config)
