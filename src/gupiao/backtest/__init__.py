@@ -12,6 +12,7 @@ from gupiao.backtest.engine import (
     is_suspended,
     max_drawdown,
     run_breakout_backtest,
+    run_morning_plan_backtest,
     win_rate,
 )
 
@@ -27,5 +28,6 @@ __all__ = [
     "is_suspended",
     "max_drawdown",
     "run_breakout_backtest",
+    "run_morning_plan_backtest",
     "win_rate",
 ]

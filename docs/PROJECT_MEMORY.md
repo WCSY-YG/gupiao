@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 12:02 CST（Asia/Shanghai）
+更新时间：2026-06-10 21:15 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -269,6 +269,48 @@ MVP 优先参考项目：
 - 对比结论：baseline 平均收益 0.12%，auction 平均收益 -0.06%，平均收益差 -0.18%；竞价增强收益更高 249 只、更低 204 只，多数股票无交易差异。
 - Skill 迭代：不要把 `min_auction_score=60` 直接作为默认硬过滤；当前更合理的是把竞价强度、缺口、量比和委买委卖不平衡作为候选排序/解释辅助，待 P6-06 多月份滚动验证后再考虑默认阈值。
 - 已更新 `skills/stock-screening-strategies` 和 `skills/auction-data-integration`：竞价分可做软加权，硬过滤保持实验配置；`research auction-compare` 的 Markdown 汇总作为后续 skill 参数变更的证据来源。
+
+## 2026-06-10 19:13 CST Web 与多策略接口补全记忆
+
+- 新增轻量策略注册表，当前策略 ID：`ma_volume_breakout`、`momentum_pullback`、`low_volatility_breakout`、`auction_assisted_breakout`。
+- `auction_assisted_breakout` 要求同日竞价画像存在，但不默认设置 `min_auction_score=60` 硬过滤；竞价强度、缺口、量比和委买委卖不平衡继续作为候选排序/解释辅助。
+- 新增日期边界语义：`as_of` 表示只使用该日期及之前的 K 线；若 `end` 与 `as_of` 同时传入且不一致，会直接报错以避免未来函数。
+- 新增 CLI：`screen list`、`screen run --strategy ... --as-of ...`、`screen candidates --db ... --as-of ...`、`data status --db ...`；旧 `screen breakout`、`signal breakout`、`backtest breakout`、`report breakout` 继续兼容，并支持 `--strategy` 与 `--as-of`。
+- 新增 Web action：`strategy_list`、`data_status`、`screen_candidates`；现有单股分析 action 支持 `strategy_id`、`as_of`、`lookback`、`auction_provider`。
+- Web 工作台已补策略下拉、截至日期、lookback、缓存状态和缓存批量选股入口；README 已补中文功能说明、CLI 示例和 Web `/api/run` payload。
+- 本轮只做功能和文档补全，没有启动全 A 股长扫描、没有重新下载行情、没有提交 SQLite 或缓存大文件。
+- 已执行并通过验证：`conda run -n agent env PYTHONPATH=src python -m compileall -q src tests`、`conda run -n agent env PYTHONPATH=src python -m unittest discover -s tests`（86 项通过）。
+
+## 2026-06-10 19:30 CST 市场日 K 缓存刷新记忆
+
+- 新增 `PYTHONPATH=src python -m gupiao.cli data refresh-market-cache`，用于检测 SQLite `bars_daily` 当前最新日期到目标日期之间缺少的交易日，并自动补齐到 AKShare 能返回的最近交易日。
+- 刷新逻辑：读取本地 `daily_bar_date_range`，默认从缓存最新日期下一天开始；用 `--probe-symbol`（默认 `000001`）探测实际缺失交易日；`--dry-run` 只输出 `missing_trade_dates` 和 `missing_trade_days`；正式运行逐只股票拉取缺口区间并 upsert，单只失败记录在 `failures` 且不中断整体任务。
+- 新增 Web action `data_refresh_market_cache`，Web 工作台“竞价与缓存”面板已有“补齐日K缺口”按钮；Web 默认 `dry_run=true`，前端确认后可改为 `false` 执行真实补齐。
+- README 已补 CLI 与 Web payload 示例；建议真实全市场补齐前先执行 `--dry-run`，再用 `--limit` 或 `--symbol` 小范围验证，最后放开全市场。
+- 本轮未启动真实 AKShare 全市场补齐，没有写入项目缓存数据库或提交大文件。
+- 已执行并通过验证：`conda run -n agent env PYTHONPATH=src python -m compileall -q src tests`、`conda run -n agent env PYTHONPATH=src python -m unittest discover -s tests`（90 项通过）、`conda run -n agent env PYTHONPATH=src python -m gupiao.cli data refresh-market-cache --help`。
+
+## 2026-06-10 19:44 CST Web 普通/专业模式重构记忆
+
+- 用户反馈 Web 端默认不能正常给结果、参数过多、按钮功能不清晰；已将默认入口改为普通模式首页，提供 4 个高频卡片：`查看缓存`、`开始选股`、`分析股票`、`查看缺口`。
+- 普通模式默认使用 `data/cache/market_scan.sqlite`，不再填写不存在的 `/tmp/gupiao_web_bars.jsonl`；高级表单中的 JSONL 字段也改为空，SQLite DB 默认使用本地缓存。
+- 右上角新增 `普通模式/专业模式` 切换；专业模式才显示原来的数据、策略、扫描、研究完整参数表单。
+- 结果区新增摘要层：缓存状态显示最新日期/股票数/行数，批量选股显示处理数、候选数和 Top 候选表，单股分析显示候选/策略/分数/信号/收益/交易数，日K补齐显示缺失日期和写入状态；原始 JSON 仍保留在下方。
+- 已用真实本地缓存验证：`data_status` 返回日K最新 `2026-06-10`、5206 只；`screen_candidates` 默认 500 只可返回候选；`quick_analysis` 对 `000001` 可生成回测和 Dashboard。
+- HTTP 验证：临时启动 `127.0.0.1:8876`，`/api/health` 和 `/api/run data_status` 正常；`8765` 当时已被占用，说明若用户看不到新页面，需要重启旧 Web 进程或换端口启动。
+- 已执行并通过验证：`compileall`、`unittest` 90 项、`gupiao.cli --version`、`git diff --check`。
+
+## 2026-06-10 21:15 CST 早盘优先多周期重构记忆
+
+- 用户指出原先“截止日期选股”更像收盘后研究，缺少早盘什么时候买、怎么卖的执行计划；本轮已将默认主流程规范为早盘竞价决策，收盘后研究流程继续保留为辅助入口。
+- 新增 `src/gupiao/trade_plan.py`，统一定义 `decision_time`、`signal_date`、`entry_date`、`entry_timing`、`entry_price_source`、止损、止盈、减仓、最长持有和不买条件，明确“选出来”不等于“立刻无条件买入”。
+- 新增 `src/gupiao/strategies/morning.py`，早盘模式以交易日 D 为决策日：日 K 只允许使用 `trade_date < D` 的历史数据，可匹配 D 日 `local_jingjia` 竞价画像；短线缺少竞价画像时直接跳过，中线缺少竞价仍可评估。
+- 策略体系已扩展为多周期：`short_term` 默认 `auction_open_breakout_short`，强依赖竞价；`mid_short_term` 默认 `volume_breakout_swing`，以趋势和量价结构为主、竞价确认；`mid_term` 默认 `trend_quality_mid`，趋势质量优先、竞价弱参考。
+- 新增 CLI：`screen morning` 用缓存批量早盘选股，`plan trade` 输出单只股票早盘买卖计划，`backtest morning` 用 D-1 及以前日 K + D 日竞价判断、D 日开盘价加滑点模拟买入。
+- Web `/api/run` 新增/补齐 `morning_screen`、`trade_plan`、`backtest_morning`，普通模式首页改为“早盘选股”和“买卖计划”优先展示，结果摘要先显示执行建议、参考买入价、止损、止盈和不买条件，再保留原始 JSON。
+- README 已补中文说明：早盘数据边界、买入时点、短线/中短线/中线周期含义、CLI 命令和 Web payload；`skills/stock-screening-strategies` 也记录早盘模式禁止使用当日完整日 K 的约束。
+- 本轮未启动全市场扫描、未重新下载行情、未写入或提交 SQLite/缓存大文件；只复用现有 `data/cache/market_scan.sqlite` 和 `local_jingjia` 画像做接口与测试验证。
+- 已执行并通过验证：`conda run -n agent env PYTHONPATH=src python -m compileall -q src tests`、`conda run -n agent env PYTHONPATH=src python -m unittest discover -s tests`（95 项通过）、`conda run -n agent env PYTHONPATH=src python -m gupiao.cli --version`（输出 `0.2.0`）。
 
 ## 注意事项
 

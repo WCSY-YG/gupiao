@@ -5,14 +5,15 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, is_dataclass
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 from gupiao.backtest import BacktestConfig, BacktestResult, run_breakout_backtest
+from gupiao.compat import UTC
 from gupiao.data import Instrument, SQLiteStore
 from gupiao.reports import format_pct
-from gupiao.strategies import MovingAverageVolumeBreakoutStrategy
+from gupiao.strategies import MovingAverageVolumeBreakoutStrategy, ScreeningStrategy
 
 
 @dataclass(frozen=True)
@@ -73,8 +74,8 @@ def run_auction_strategy_comparison(
     *,
     config: AuctionStrategyComparisonConfig,
     store: SQLiteStore | None = None,
-    baseline_strategy: MovingAverageVolumeBreakoutStrategy | None = None,
-    auction_strategy: MovingAverageVolumeBreakoutStrategy | None = None,
+    baseline_strategy: ScreeningStrategy | None = None,
+    auction_strategy: ScreeningStrategy | None = None,
     backtest_config: BacktestConfig | None = None,
 ) -> AuctionStrategyComparisonResult:
     validate_config(config)
@@ -143,8 +144,8 @@ def compare_symbol(
     instrument: Instrument | None,
     store: SQLiteStore,
     config: AuctionStrategyComparisonConfig,
-    baseline_strategy: MovingAverageVolumeBreakoutStrategy,
-    auction_strategy: MovingAverageVolumeBreakoutStrategy,
+    baseline_strategy: ScreeningStrategy,
+    auction_strategy: ScreeningStrategy,
     backtest_config: BacktestConfig,
 ) -> AuctionStrategySymbolResult:
     name = instrument.name if instrument is not None else symbol
@@ -435,7 +436,7 @@ def escape_table_text(value: str) -> str:
 
 def to_jsonable(value: Any) -> Any:
     if is_dataclass(value):
-        return to_jsonable(asdict(value))
+        return to_jsonable(asdict(value))  # type: ignore[arg-type]
     if isinstance(value, dict):
         return {key: to_jsonable(item) for key, item in value.items()}
     if isinstance(value, list):

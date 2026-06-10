@@ -244,6 +244,29 @@ class AkshareProviderTest(TestCase):
         self.assertIsNone(args.min_auction_score)
         self.assertEqual(args.auction_score_weight, 0.15)
 
+    def test_cli_refresh_market_cache_arguments_parse_without_fetching(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "data",
+                "refresh-market-cache",
+                "--db",
+                "data/cache/market_scan.sqlite",
+                "--end",
+                "2026-06-10",
+                "--limit",
+                "10",
+                "--request-sleep",
+                "0.2",
+                "--dry-run",
+            ]
+        )
+
+        self.assertEqual(args.db, "data/cache/market_scan.sqlite")
+        self.assertEqual(args.end, date(2026, 6, 10))
+        self.assertEqual(args.limit, 10)
+        self.assertEqual(args.request_sleep, 0.2)
+        self.assertTrue(args.dry_run)
+
     def test_cli_scan_market_auction_arguments_parse_without_fetching(self) -> None:
         args = build_parser().parse_args(
             [

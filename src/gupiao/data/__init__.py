@@ -11,6 +11,11 @@ from gupiao.data.local_daily_cache import (
     LocalDailyCacheImportResult,
     import_local_daily_cache,
 )
+from gupiao.data.market_cache import (
+    MarketCacheRefreshConfig,
+    MarketCacheRefreshResult,
+    refresh_market_daily_cache,
+)
 from gupiao.data.providers import DataProvider
 from gupiao.data.quality import (
     ValidationIssue,
@@ -32,11 +37,14 @@ __all__ = [
     "LocalAuctionCacheImportResult",
     "LocalDailyCacheImportConfig",
     "LocalDailyCacheImportResult",
+    "MarketCacheRefreshConfig",
+    "MarketCacheRefreshResult",
     "SQLiteStore",
     "ValidationIssue",
     "has_errors",
     "import_local_auction_cache",
     "import_local_daily_cache",
+    "refresh_market_daily_cache",
     "validate_daily_bars",
     "validate_instruments",
 ]

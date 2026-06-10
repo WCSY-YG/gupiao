@@ -1,6 +1,6 @@
 # 项目任务清单
 
-更新时间：2026-06-10 17:40 CST
+更新时间：2026-06-10 21:15 CST
 
 本文档是项目自动推进的状态源。每一轮任务开始前先读取本文件；每完成一个任务，必须更新状态并本地提交。GitHub 推送若失败，记录 `push_pending` 后继续推进。
 
@@ -50,6 +50,10 @@
 | P6-04 | done | Phase 6 | 导入本地历史竞价缓存 | 将 `cache/jingjia/*.rar` 解压/解析为竞价明细或竞价画像表，建立按股票和交易日查询接口 | P6-03 |
 | P6-05 | done | Phase 6 | 基于 K 线与竞价数据迭代优化 skill | 用最近 K 线和历史竞价画像构建样本外回测，比较原策略与竞价增强策略并更新选股 skill 参数/阈值 | P6-04 |
 | P6-06 | pending | Phase 6 | 扩展竞价增强参数滚动验证 | 对不同月份、不同 `min_auction_score` 和 `auction_score_weight` 做滚动对比，形成更稳健的参数建议 | P6-05 |
+| P6-07 | done | Phase 6 | 补全 Web 端选股体验与多策略接口 | 支持策略注册表、按 `as_of` 日期选股、SQLite 缓存批量候选、Web action 和 README 使用说明 | P6-05 |
+| P6-08 | done | Phase 6 | 增加市场日 K 缓存缺口检测与补齐入口 | 支持查看 SQLite 最新日 K 缺口、dry-run 预览缺失交易日，并自动拉取补齐到 AKShare 最近可用交易日 | P6-01 |
+| P6-09 | done | Phase 6 | 重构 Web 工作台普通/专业模式体验 | 默认普通模式使用 SQLite 缓存给出可用结果，专业模式保留完整参数，结果区显示摘要和原始 JSON | P6-07 |
+| P6-10 | done | Phase 6 | 早盘优先的多周期选股与买卖计划重构 | 默认早盘竞价决策，支持短线/中短线/中线策略、严格时间边界、买卖计划、早盘回测和 Web/CLI 入口 | P6-05, P6-09 |
 
 ## 完成记录
 
@@ -80,3 +84,7 @@
 - 2026-06-10 16:55 CST：完成 P6-03 竞价数据增强第一阶段，新增 AKShare 盘前分钟数据接入、竞价画像/评分、选股策略竞价加权、回测竞价画像注入、研究样本生成和 `skills/auction-data-integration`；后续 P6-04/P6-05 继续导入本地历史竞价缓存并做样本外迭代。
 - 2026-06-10 17:19 CST：完成 P6-04 本地历史竞价缓存导入入口，新增 `data import-auction-cache`、SQLite `auction_profiles` 存储/查询、RAR 流式解析、委买委卖不平衡特征、扫描 `--auction-provider` 接入和竞价增强扫描参数；已对 `2026-05-06` 做真实小导入，写入 5,490 条 `local_jingjia` 竞价画像，29 个月全量导入留作可恢复数据作业。
 - 2026-06-10 17:40 CST：完成 P6-05 竞价增强策略对比与 skill 迭代，新增 `research auction-compare`，导入 2026-05-06 至 2026-05-29 的 98,958 条竞价画像，并用 2026-01-01 至 2026-05-29 的日 K 对 5,510 只有竞价画像的股票跑 baseline vs auction 对比；结果显示 `min_auction_score=60` + `auction_score_weight=0.15` 平均收益差为 -0.18%，已将 skill 建议调整为优先软排序/解释，不默认硬过滤。
+- 2026-06-10 19:13 CST：完成 Web 端选股体验与多策略接口补全，新增 `screen list`、`screen run`、`screen candidates`、`data status`，支持 `ma_volume_breakout`、`momentum_pullback`、`low_volatility_breakout`、`auction_assisted_breakout`，`as_of` 截止日期和 SQLite 缓存候选；Web 新增 `strategy_list`、`data_status`、`screen_candidates` action 和页面入口；已通过 `compileall` 与 `unittest` 86 项。
+- 2026-06-10 19:30 CST：完成市场日 K 缓存缺口检测与补齐入口，新增 `data refresh-market-cache`、`MarketCacheRefreshConfig`、`refresh_market_daily_cache` 和 Web action `data_refresh_market_cache`；支持 `--dry-run` 查看缺失交易日、`--probe-symbol` 探测最近可用交易日、`--limit/--symbol` 小范围补齐；已通过 `compileall`、`unittest` 90 项和 CLI help 验证。
+- 2026-06-10 19:44 CST：按用户反馈重构 Web 工作台体验，新增默认普通模式首页（查看缓存、批量选股、单股分析、查看日K缺口），完整参数收进专业模式；修复默认 `/tmp/gupiao_web_bars.jsonl` 不存在导致按钮无结果的问题，改为默认使用 `data/cache/market_scan.sqlite`；结果区新增摘要卡片和 Top 候选表，原始 JSON 保留；已通过 `compileall`、`unittest` 90 项、HTTP `/api/health` 与 `/api/run data_status` 验证。
+- 2026-06-10 21:15 CST：完成早盘优先的多周期选股与买卖计划重构，新增 `screen morning`、`plan trade`、`backtest morning`，短线强依赖竞价，中短线以量价结构为主，中线弱化竞价；早盘模式只使用交易日之前的日 K 与交易日当天竞价画像，回测用交易日开盘价加滑点成交；Web 普通模式新增早盘选股和买卖计划摘要；已通过 `compileall`、`unittest` 95 项和 CLI version 验证。

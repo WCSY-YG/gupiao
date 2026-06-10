@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Iterable
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from pathlib import Path
 
+from gupiao.compat import UTC
 from gupiao.data.schema import AuctionProfile, DailyBar, Instrument
 
 
@@ -139,6 +140,129 @@ class SQLiteStore:
             )
             for row in rows
         ]
+
+    def list_daily_bar_symbols(
+        self,
+        *,
+        start: date | None = None,
+        end: date | None = None,
+        adjust: str | None = None,
+        limit: int | None = None,
+    ) -> list[str]:
+        self.init_schema()
+        sql = """
+            SELECT DISTINCT symbol
+            FROM bars_daily
+            WHERE 1 = 1
+        """
+        parameters: list[str | int] = []
+        if start is not None:
+            sql += " AND trade_date >= ?"
+            parameters.append(date_to_text(start) or "")
+        if end is not None:
+            sql += " AND trade_date <= ?"
+            parameters.append(date_to_text(end) or "")
+        if adjust is not None:
+            sql += " AND adjust = ?"
+            parameters.append(adjust)
+        sql += " ORDER BY symbol"
+        if limit is not None:
+            sql += " LIMIT ?"
+            parameters.append(limit)
+
+        with self.connect() as connection:
+            rows = connection.execute(sql, parameters).fetchall()
+        return [row["symbol"] for row in rows]
+
+    def daily_bar_date_range(self, *, adjust: str | None = None) -> tuple[date | None, date | None]:
+        self.init_schema()
+        sql = "SELECT MIN(trade_date) AS start, MAX(trade_date) AS end FROM bars_daily"
+        parameters: list[str] = []
+        if adjust is not None:
+            sql += " WHERE adjust = ?"
+            parameters.append(adjust)
+        with self.connect() as connection:
+            row = connection.execute(sql, parameters).fetchone()
+        return text_to_date(row["start"]), text_to_date(row["end"])
+
+    def list_daily_bar_dates(
+        self,
+        *,
+        start: date | None = None,
+        end: date | None = None,
+        adjust: str | None = None,
+    ) -> list[date]:
+        self.init_schema()
+        sql = "SELECT DISTINCT trade_date FROM bars_daily WHERE 1 = 1"
+        parameters: list[str] = []
+        if start is not None:
+            sql += " AND trade_date >= ?"
+            parameters.append(date_to_text(start) or "")
+        if end is not None:
+            sql += " AND trade_date <= ?"
+            parameters.append(date_to_text(end) or "")
+        if adjust is not None:
+            sql += " AND adjust = ?"
+            parameters.append(adjust)
+        sql += " ORDER BY trade_date"
+        with self.connect() as connection:
+            rows = connection.execute(sql, parameters).fetchall()
+        return [text_to_date(row["trade_date"]) or date.min for row in rows]
+
+    def data_status(self) -> dict[str, object]:
+        self.init_schema()
+        with self.connect() as connection:
+            instrument_count = connection.execute(
+                "SELECT COUNT(*) AS count FROM instruments"
+            ).fetchone()["count"]
+            daily = connection.execute(
+                """
+                SELECT COUNT(*) AS rows,
+                       COUNT(DISTINCT symbol) AS symbols,
+                       MIN(trade_date) AS start,
+                       MAX(trade_date) AS end
+                FROM bars_daily
+                """
+            ).fetchone()
+            auction = connection.execute(
+                """
+                SELECT COUNT(*) AS rows,
+                       COUNT(DISTINCT symbol) AS symbols,
+                       MIN(trade_date) AS start,
+                       MAX(trade_date) AS end
+                FROM auction_profiles
+                """
+            ).fetchone()
+            adjusts = [
+                row["adjust"]
+                for row in connection.execute(
+                    "SELECT DISTINCT adjust FROM bars_daily ORDER BY adjust"
+                ).fetchall()
+            ]
+            auction_providers = [
+                row["provider"]
+                for row in connection.execute(
+                    "SELECT DISTINCT provider FROM auction_profiles ORDER BY provider"
+                ).fetchall()
+            ]
+        return {
+            "db_path": str(self.path),
+            "instruments": {"count": instrument_count},
+            "daily_bars": {
+                "rows": daily["rows"],
+                "symbols": daily["symbols"],
+                "start": daily["start"],
+                "end": daily["end"],
+                "adjusts": adjusts,
+            },
+            "auction_profiles": {
+                "rows": auction["rows"],
+                "symbols": auction["symbols"],
+                "start": auction["start"],
+                "end": auction["end"],
+                "providers": auction_providers,
+            },
+        }
 
     def upsert_daily_bars(self, bars: Iterable[DailyBar]) -> int:
         rows = [

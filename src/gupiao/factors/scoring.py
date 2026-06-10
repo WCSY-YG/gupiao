@@ -30,7 +30,7 @@ def rank_factors(
         return []
     weights = dict(weights or default_factor_weights())
     higher_is_better = dict(higher_is_better or default_factor_directions())
-    normalized = normalize_factors(rows, weights.keys(), higher_is_better)
+    normalized = normalize_factors(rows, list(weights), higher_is_better)
     scores = []
     total_weight = sum(abs(weight) for weight in weights.values()) or 1.0
 
@@ -57,7 +57,7 @@ def normalize_factors(
     factors: Sequence[str],
     higher_is_better: Mapping[str, bool],
 ) -> dict[str, dict[str, float]]:
-    result = {row.symbol: {} for row in rows}
+    result: dict[str, dict[str, float]] = {row.symbol: {} for row in rows}
     for factor in factors:
         values = [row.factors[factor] for row in rows if factor in row.factors]
         if not values:

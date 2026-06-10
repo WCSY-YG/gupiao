@@ -55,6 +55,14 @@ Borrow the batch-job split from myhhub/stock without copying its full deployment
 - Keep auction metrics in candidate explanations: `auction_strength_score`, `auction_gap_pct`, `auction_volume_ratio_to_daily`, and `auction_bid_ask_imbalance`.
 - Latest validation note: 2026-01-01 to 2026-05-29 with May 2026 `local_jingjia` profiles showed `min_auction_score=60` and `auction_score_weight=0.15` did not improve average return, so prefer soft ranking/diagnostics over default hard filtering.
 
+## Morning Multi-Horizon Strategy Rules
+
+- `short_term`: pre-open decision after 09:25 call auction; use only prior daily bars plus same-day auction profile; auction is required; default strategies are `auction_open_breakout_short` and `auction_gap_reversal_short`.
+- `mid_short_term`: 3-10 day swing decision; use prior daily volume-price structure first and same-day auction as confirmation; default strategies are `volume_breakout_swing` and `pullback_recovery_swing`.
+- `mid_term`: 10-30 day trend-quality decision; use moving-average trend, volatility stability, liquidity, and drawdown filters first; auction has low weight and must not be a hard requirement by default; default strategy is `trend_quality_mid`.
+- Every selected candidate should have a separate `TradePlan` describing decision time, visible data boundary, reference entry price, entry timing, stop loss, take profit, reduce price, max holding bars, buy conditions, avoid conditions, and risk notes.
+- In `morning_auction` mode, daily bars for the decision must satisfy `trade_date < decision trade_date`; the trade date daily open may be used only as a backtest execution price, never as a selection feature.
+
 ## Validation
 
 - Compare selections against a benchmark universe.

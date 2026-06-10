@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import time
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 from gupiao.backtest import BacktestConfig
+from gupiao.compat import UTC
 from gupiao.data import AuctionProfile, DailyBar, Instrument, SQLiteStore
 from gupiao.scan import (
     MarketScanConfig,

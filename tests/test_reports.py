@@ -6,6 +6,7 @@ from unittest import TestCase
 from gupiao.backtest import BacktestConfig, run_breakout_backtest
 from gupiao.reports import build_markdown_report, format_pct, write_markdown_report
 from gupiao.signals import build_breakout_signal
+
 from tests.test_backtest_engine import small_strategy
 from tests.test_screening_strategy import breakout_bars
 

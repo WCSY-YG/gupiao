@@ -4,6 +4,7 @@ from unittest import TestCase
 
 from gupiao.signals import build_breakout_signal, confidence_from_score
 from gupiao.strategies import MovingAverageVolumeBreakoutStrategy
+
 from tests.test_screening_strategy import breakout_bars
 
 

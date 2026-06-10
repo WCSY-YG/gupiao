@@ -8,7 +8,8 @@ from datetime import date
 
 from gupiao.data import AuctionProfile, DailyBar, has_errors, validate_daily_bars
 from gupiao.signals import SignalPlan, build_breakout_signal
-from gupiao.strategies import MovingAverageVolumeBreakoutStrategy
+from gupiao.strategies import MovingAverageVolumeBreakoutStrategy, ScreeningStrategy, build_screening_strategy
+from gupiao.trade_plan import MORNING_AUCTION, SHORT_TERM, TradePlan, build_trade_plan, default_strategy_for_horizon
 
 
 @dataclass(frozen=True)
@@ -65,7 +66,7 @@ def run_breakout_backtest(
     symbol: str,
     bars: Sequence[DailyBar],
     *,
-    strategy: MovingAverageVolumeBreakoutStrategy | None = None,
+    strategy: ScreeningStrategy | None = None,
     config: BacktestConfig | None = None,
     auction_profiles: Mapping[date, AuctionProfile] | None = None,
 ) -> BacktestResult:
@@ -197,6 +198,144 @@ def run_breakout_backtest(
     )
 
 
+def run_morning_plan_backtest(
+    symbol: str,
+    bars: Sequence[DailyBar],
+    *,
+    horizon: str = SHORT_TERM,
+    strategy: ScreeningStrategy | None = None,
+    config: BacktestConfig | None = None,
+    auction_profiles: Mapping[date, AuctionProfile] | None = None,
+) -> BacktestResult:
+    strategy = strategy or build_screening_strategy(default_strategy_for_horizon(horizon))
+    config = config or BacktestConfig(max_holding_bars=3 if horizon == SHORT_TERM else 20)
+    ordered_bars = sorted(bars, key=lambda item: item.trade_date)
+    quality_issues = validate_daily_bars(ordered_bars)
+    if has_errors(quality_issues):
+        raise ValueError("Cannot backtest bars with data quality errors.")
+
+    cash = config.initial_cash
+    quantity = 0.0
+    entry_price = 0.0
+    entry_date: date | None = None
+    entry_cash = 0.0
+    holding_bars = 0
+    active_plan: TradePlan | None = None
+    equity_curve: list[EquityPoint] = []
+    trades: list[Trade] = []
+    auction_profiles = auction_profiles or {}
+
+    for index, bar in enumerate(ordered_bars):
+        exited_this_bar = False
+        previous_close = ordered_bars[index - 1].close if index > 0 else None
+        if quantity > 0 and active_plan is not None and entry_date is not None:
+            holding_bars += 1
+            exit_price, exit_reason = resolve_plan_exit(
+                bar,
+                active_plan,
+                holding_bars,
+                config,
+                previous_close=previous_close,
+            )
+            if exit_price is not None:
+                cash, trade = close_position(
+                    symbol=symbol,
+                    cash=cash,
+                    quantity=quantity,
+                    entry_price=entry_price,
+                    entry_cash=entry_cash,
+                    entry_date=entry_date,
+                    exit_date=bar.trade_date,
+                    exit_price=exit_price,
+                    holding_bars=holding_bars,
+                    exit_reason=exit_reason,
+                    config=config,
+                )
+                trades.append(trade)
+                quantity = 0.0
+                entry_price = 0.0
+                entry_date = None
+                entry_cash = 0.0
+                holding_bars = 0
+                active_plan = None
+                exited_this_bar = True
+
+        if quantity == 0 and not exited_this_bar:
+            auction_profile = auction_profiles.get(bar.trade_date)
+            history = ordered_bars[:index]
+            if auction_profile is not None and history:
+                candidate = strategy.evaluate(
+                    symbol,
+                    history,
+                    auction_profile=auction_profile,
+                )
+                if candidate is not None and can_enter_at_price(bar.open, bar, previous_close, config):
+                    plan = build_trade_plan(
+                        candidate,
+                        history,
+                        decision_time=MORNING_AUCTION,
+                        horizon=horizon,
+                        signal_date=bar.trade_date,
+                        auction_profile=auction_profile,
+                        reference_entry_price=bar.open,
+                        entry_price_source="daily_open",
+                    )
+                    entry_price = apply_buy_slippage(bar.open, config)
+                    quantity, cash, entry_cash = open_position(cash, entry_price, config)
+                    entry_date = bar.trade_date
+                    active_plan = plan
+
+        position_value = quantity * bar.close
+        equity_curve.append(
+            EquityPoint(
+                trade_date=bar.trade_date,
+                equity=cash + position_value,
+                cash=cash,
+                position_value=position_value,
+            )
+        )
+
+    if quantity > 0 and entry_date is not None:
+        last_bar = ordered_bars[-1]
+        cash, trade = close_position(
+            symbol=symbol,
+            cash=cash,
+            quantity=quantity,
+            entry_price=entry_price,
+            entry_cash=entry_cash,
+            entry_date=entry_date,
+            exit_date=last_bar.trade_date,
+            exit_price=apply_sell_slippage(last_bar.close, config),
+            holding_bars=holding_bars,
+            exit_reason="end_of_data",
+            config=config,
+        )
+        trades.append(trade)
+        equity_curve[-1] = EquityPoint(
+            trade_date=last_bar.trade_date,
+            equity=cash,
+            cash=cash,
+            position_value=0.0,
+        )
+
+    final_equity = equity_curve[-1].equity if equity_curve else config.initial_cash
+    return BacktestResult(
+        symbol=symbol,
+        total_return=(final_equity / config.initial_cash) - 1,
+        max_drawdown=max_drawdown([point.equity for point in equity_curve]),
+        win_rate=win_rate(trades),
+        trade_count=len(trades),
+        equity_curve=tuple(equity_curve),
+        trades=tuple(trades),
+        assumptions=(
+            "Long-only, single-symbol morning plan backtest.",
+            "Morning decisions use prior daily bars plus same-day call-auction profile.",
+            "Entries execute at trade-date open with configured slippage.",
+            "A-share constraints apply when config.apply_a_share_constraints is true.",
+        ),
+    )
+
+
 def resolve_exit(
     bar: DailyBar,
     signal: SignalPlan,
@@ -216,6 +355,25 @@ def resolve_exit(
     return None, ""
 
 
+def resolve_plan_exit(
+    bar: DailyBar,
+    plan: TradePlan,
+    holding_bars: int,
+    config: BacktestConfig,
+    *,
+    previous_close: float | None = None,
+) -> tuple[float | None, str]:
+    if not can_exit(bar, previous_close, holding_bars, config):
+        return None, ""
+    if plan.stop_loss is not None and bar.low <= plan.stop_loss:
+        return apply_sell_slippage(plan.stop_loss, config), "stop_loss"
+    if plan.take_profit is not None and bar.high >= plan.take_profit:
+        return apply_sell_slippage(plan.take_profit, config), "take_profit"
+    if holding_bars >= min(plan.max_holding_bars, config.max_holding_bars):
+        return apply_sell_slippage(bar.close, config), "max_holding_bars"
+    return None, ""
+
+
 def can_enter(
     bar: DailyBar,
     previous_close: float | None,
@@ -226,6 +384,19 @@ def can_enter(
     if config.block_suspended and is_suspended(bar):
         return False
     return not is_limit_up(bar.close, previous_close, config.limit_up_pct)
+
+
+def can_enter_at_price(
+    price: float,
+    bar: DailyBar,
+    previous_close: float | None,
+    config: BacktestConfig,
+) -> bool:
+    if not config.apply_a_share_constraints:
+        return True
+    if config.block_suspended and is_suspended(bar):
+        return False
+    return not is_limit_up(price, previous_close, config.limit_up_pct)
 
 
 def can_exit(

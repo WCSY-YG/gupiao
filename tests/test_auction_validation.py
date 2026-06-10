@@ -107,8 +107,7 @@ class AuctionValidationTest(TestCase):
 
 
 def run_empty_comparison(config: AuctionStrategyComparisonConfig):
-    from datetime import UTC
-
+    from gupiao.compat import UTC
     from gupiao.research.auction_validation import AuctionStrategyComparisonResult
 
     return AuctionStrategyComparisonResult(

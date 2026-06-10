@@ -6,7 +6,11 @@ from unittest import TestCase
 from gupiao.auction import build_auction_profile
 from gupiao.data import DailyBar
 from gupiao.strategies import (
+    LowVolatilityBreakoutStrategy,
+    MomentumPullbackStrategy,
     MovingAverageVolumeBreakoutStrategy,
+    available_strategy_specs,
+    build_screening_strategy,
     score_candidate,
     score_with_auction,
 )
@@ -95,6 +99,80 @@ class ScreeningStrategyTest(TestCase):
         bars.append(bars[-1])
 
         self.assertIsNone(strategy.evaluate("000001", bars))
+
+    def test_strategy_registry_builds_expected_strategies(self) -> None:
+        strategy_ids = {spec.id for spec in available_strategy_specs()}
+
+        self.assertIn("ma_volume_breakout", strategy_ids)
+        self.assertIn("momentum_pullback", strategy_ids)
+        self.assertIn("low_volatility_breakout", strategy_ids)
+        self.assertIn("auction_assisted_breakout", strategy_ids)
+        self.assertIsInstance(
+            build_screening_strategy("momentum_pullback"),
+            MomentumPullbackStrategy,
+        )
+        self.assertIsInstance(
+            build_screening_strategy("low_volatility_breakout"),
+            LowVolatilityBreakoutStrategy,
+        )
+
+    def test_momentum_pullback_returns_candidate(self) -> None:
+        strategy = MomentumPullbackStrategy(
+            short_window=3,
+            medium_window=5,
+            long_window=8,
+            volume_window=5,
+            pullback_window=5,
+            min_volume_ratio=1.5,
+        )
+
+        candidate = strategy.evaluate("000001", breakout_bars())
+
+        self.assertIsNotNone(candidate)
+        assert candidate is not None
+        self.assertEqual(candidate.strategy, "momentum_pullback")
+        self.assertIn("distance_to_medium_ma", candidate.metrics)
+
+    def test_low_volatility_breakout_returns_candidate(self) -> None:
+        strategy = LowVolatilityBreakoutStrategy(
+            short_window=3,
+            medium_window=5,
+            long_window=8,
+            volume_window=5,
+            breakout_window=5,
+            min_volume_ratio=1.5,
+        )
+
+        candidate = strategy.evaluate("000001", breakout_bars())
+
+        self.assertIsNotNone(candidate)
+        assert candidate is not None
+        self.assertEqual(candidate.strategy, "low_volatility_breakout")
+        self.assertIn("compression_pct", candidate.metrics)
+
+    def test_auction_assisted_breakout_requires_auction_profile(self) -> None:
+        strategy = build_screening_strategy(
+            "auction_assisted_breakout",
+            short_window=3,
+            medium_window=5,
+            long_window=8,
+            volume_window=5,
+            breakout_window=5,
+            min_volume_ratio=1.5,
+        )
+        profile = build_auction_profile(
+            "000001",
+            auction_minutes(),
+            previous_close=10.0,
+            average_daily_volume=10_000.0,
+        )
+
+        self.assertIsNone(strategy.evaluate("000001", breakout_bars()))
+        candidate = strategy.evaluate("000001", breakout_bars(), auction_profile=profile)
+        self.assertIsNotNone(candidate)
+        assert candidate is not None
+        self.assertEqual(candidate.strategy, "auction_assisted_breakout")
+        self.assertIn("auction_strength_score", candidate.metrics)
 
     def test_score_candidate_is_bounded(self) -> None:
         self.assertEqual(

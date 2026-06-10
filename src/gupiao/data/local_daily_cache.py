@@ -6,10 +6,11 @@ import csv
 import re
 import sqlite3
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from gupiao.compat import UTC
 from gupiao.data.akshare_provider import infer_exchange, normalize_symbol
 from gupiao.data.storage import SQLiteStore
 
@@ -356,4 +357,4 @@ def max_date(left: date | None, right: date) -> date:
 
 
 def now_text() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(UTC).replace(microsecond=0).isoformat()

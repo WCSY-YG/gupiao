@@ -7,9 +7,9 @@ import shutil
 import sqlite3
 import subprocess
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time
 from pathlib import Path
-from typing import Any, TextIO
+from typing import IO, Any
 
 from gupiao.auction import score_auction_profile
 from gupiao.data.akshare_provider import normalize_symbol
@@ -327,7 +327,7 @@ def parse_auction_member(
 
 
 def parse_auction_csv(
-    file: TextIO,
+    file: IO[str],
     *,
     trade_date: date,
     provider: str,
@@ -499,7 +499,7 @@ def parse_hhmmss_to_code(value: str) -> int:
     return ((hour * 10_000) + (minute * 100) + second) * 1000
 
 
-def time_from_code(value: int):
+def time_from_code(value: int) -> time:
     text = str(value).zfill(9)
     return datetime.strptime(text[:6], "%H%M%S").time()
 

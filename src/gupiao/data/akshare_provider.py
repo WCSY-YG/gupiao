@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import importlib
 from collections.abc import Iterable, Mapping
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from typing import Any
 
+from gupiao.compat import UTC
 from gupiao.data.schema import AuctionMinuteBar, DailyBar, Instrument
 
 Record = Mapping[str, Any]
@@ -41,7 +42,7 @@ class AkshareProvider:
     ) -> Iterable[DailyBar]:
         normalized_symbol = normalize_symbol(symbol)
         normalized_adjust = normalize_adjust(adjust)
-        fetched_at = datetime.now(timezone.utc)
+        fetched_at = datetime.now(UTC)
         frame = self._akshare().stock_zh_a_hist(
             symbol=normalized_symbol,
             period="daily",
@@ -75,7 +76,7 @@ class AkshareProvider:
         end_time: str = "09:25:00",
     ) -> Iterable[AuctionMinuteBar]:
         normalized_symbol = normalize_symbol(symbol)
-        fetched_at = datetime.now(timezone.utc)
+        fetched_at = datetime.now(UTC)
         frame = self._akshare().stock_zh_a_hist_pre_min_em(
             symbol=normalized_symbol,
             start_time=start_time,

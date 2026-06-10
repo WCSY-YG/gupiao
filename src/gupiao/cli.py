@@ -10,22 +10,35 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from gupiao.backtest import BacktestConfig, run_breakout_backtest
+from gupiao.backtest import BacktestConfig, run_breakout_backtest, run_morning_plan_backtest
 from gupiao.data import (
     AkshareProvider,
     AuctionMinuteBar,
     DailyBar,
     LocalAuctionCacheImportConfig,
     LocalDailyCacheImportConfig,
+    MarketCacheRefreshConfig,
     SQLiteStore,
     import_local_auction_cache,
     import_local_daily_cache,
+    refresh_market_daily_cache,
 )
 from gupiao.reports import build_markdown_report, write_markdown_report
 from gupiao.research import AuctionStrategyComparisonConfig, run_auction_strategy_comparison
 from gupiao.scan import DEFAULT_SCAN_END, DEFAULT_SCAN_START, MarketScanConfig, run_market_scan
 from gupiao.signals import build_breakout_signal
-from gupiao.strategies import MovingAverageVolumeBreakoutStrategy
+from gupiao.strategies import (
+    CandidateScreenConfig,
+    MorningScreenConfig,
+    ScreeningStrategy,
+    available_strategy_specs,
+    bars_up_to,
+    build_screening_strategy,
+    run_morning_screen,
+    run_cached_candidate_screen,
+)
+from gupiao.trade_plan import HORIZONS, SHORT_TERM
+from gupiao.web import build_dashboard_html, serve_app, write_dashboard_html
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -111,12 +124,79 @@ def build_parser() -> argparse.ArgumentParser:
     import_auction_cache.add_argument("--dry-run", action="store_true")
     import_auction_cache.set_defaults(handler=handle_data_import_auction_cache)
 
+    data_status = data_subparsers.add_parser(
+        "status",
+        help="Summarize local SQLite cache coverage.",
+    )
+    data_status.add_argument("--db", default="data/cache/market_scan.sqlite")
+    data_status.set_defaults(handler=handle_data_status)
+
+    refresh_market_cache = data_subparsers.add_parser(
+        "refresh-market-cache",
+        help="Detect missing market daily dates and fetch them into SQLite.",
+    )
+    refresh_market_cache.add_argument("--db", default="data/cache/market_scan.sqlite")
+    refresh_market_cache.add_argument("--adjust", choices=["raw", "qfq", "hfq"], default="hfq")
+    refresh_market_cache.add_argument("--start", type=parse_cli_date, default=None)
+    refresh_market_cache.add_argument("--end", type=parse_cli_date, default=None)
+    refresh_market_cache.add_argument("--probe-symbol", default="000001")
+    refresh_market_cache.add_argument("--limit", type=positive_int, default=None)
+    refresh_market_cache.add_argument("--symbol", action="append", default=[])
+    refresh_market_cache.add_argument("--retries", type=positive_int, default=3)
+    refresh_market_cache.add_argument("--retry-sleep", type=non_negative_float, default=1.0)
+    refresh_market_cache.add_argument("--request-sleep", type=non_negative_float, default=0.0)
+    refresh_market_cache.add_argument("--dry-run", action="store_true")
+    refresh_market_cache.set_defaults(handler=handle_data_refresh_market_cache)
+
     screen_parser = subparsers.add_parser("screen", help="Run stock screening tasks.")
     screen_subparsers = screen_parser.add_subparsers(dest="screen_command", required=True)
+    screen_list = screen_subparsers.add_parser("list", help="List available screen strategies.")
+    screen_list.set_defaults(handler=handle_screen_list)
+
+    screen_run = screen_subparsers.add_parser(
+        "run",
+        help="Run one strategy for one symbol from JSONL or SQLite cache.",
+    )
+    add_screen_source_args(screen_run)
+    add_strategy_args(screen_run)
+    screen_run.set_defaults(handler=handle_screen_run)
+
+    screen_candidates = screen_subparsers.add_parser(
+        "candidates",
+        help="Rank candidates from local SQLite cache without fetching remote data.",
+    )
+    screen_candidates.add_argument("--db", default="data/cache/market_scan.sqlite")
+    screen_candidates.add_argument("--as-of", type=parse_cli_date, default=None)
+    screen_candidates.add_argument("--end", type=parse_cli_date, default=None)
+    screen_candidates.add_argument("--lookback", type=positive_int, default=180)
+    screen_candidates.add_argument("--adjust", choices=["raw", "qfq", "hfq"], default="hfq")
+    screen_candidates.add_argument("--top", type=positive_int, default=30)
+    screen_candidates.add_argument("--limit", type=positive_int, default=None)
+    screen_candidates.add_argument("--symbol", action="append", default=[])
+    screen_candidates.add_argument("--auction-provider", default=None)
+    add_strategy_args(screen_candidates)
+    screen_candidates.set_defaults(handler=handle_screen_candidates)
+
+    screen_morning = screen_subparsers.add_parser(
+        "morning",
+        help="Run morning call-auction screening from local SQLite cache.",
+    )
+    add_morning_screen_args(screen_morning)
+    screen_morning.set_defaults(handler=handle_screen_morning)
+
     screen_breakout = screen_subparsers.add_parser("breakout")
     add_bars_args(screen_breakout)
     add_strategy_args(screen_breakout)
     screen_breakout.set_defaults(handler=handle_screen_breakout)
+
+    plan_parser = subparsers.add_parser("plan", help="Build actionable trade plans.")
+    plan_subparsers = plan_parser.add_subparsers(dest="plan_command", required=True)
+    plan_trade = plan_subparsers.add_parser(
+        "trade",
+        help="Build one trade plan from morning call-auction context.",
+    )
+    add_trade_plan_args(plan_trade)
+    plan_trade.set_defaults(handler=handle_plan_trade)
 
     signal_parser = subparsers.add_parser("signal", help="Generate buy/sell signals.")
     signal_subparsers = signal_parser.add_subparsers(dest="signal_command", required=True)
@@ -133,6 +213,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_strategy_args(backtest_breakout)
     add_backtest_args(backtest_breakout)
     backtest_breakout.set_defaults(handler=handle_backtest_breakout)
+    backtest_morning = backtest_subparsers.add_parser(
+        "morning",
+        help="Backtest morning call-auction decisions with trade-date open entries.",
+    )
+    add_morning_backtest_args(backtest_morning)
+    backtest_morning.set_defaults(handler=handle_backtest_morning)
 
     report_parser = subparsers.add_parser("report", help="Generate research reports.")
     report_subparsers = report_parser.add_subparsers(dest="report_command", required=True)
@@ -143,6 +229,27 @@ def build_parser() -> argparse.ArgumentParser:
     report_breakout.add_argument("--title", default="MVP 策略报告")
     report_breakout.add_argument("--output", required=True)
     report_breakout.set_defaults(handler=handle_report_breakout)
+
+    web_parser = subparsers.add_parser("web", help="Generate browser-ready web pages.")
+    web_subparsers = web_parser.add_subparsers(dest="web_command", required=True)
+    web_dashboard = web_subparsers.add_parser(
+        "dashboard",
+        help="Generate a standalone HTML research dashboard.",
+    )
+    add_bars_args(web_dashboard)
+    add_strategy_args(web_dashboard)
+    add_backtest_args(web_dashboard)
+    web_dashboard.add_argument("--title", default="A 股策略研究 Dashboard")
+    web_dashboard.add_argument("--output", required=True)
+    web_dashboard.set_defaults(handler=handle_web_dashboard)
+
+    web_serve = web_subparsers.add_parser(
+        "serve",
+        help="Run the interactive local web app.",
+    )
+    web_serve.add_argument("--host", default="127.0.0.1")
+    web_serve.add_argument("--port", type=positive_int, default=8765)
+    web_serve.set_defaults(handler=handle_web_serve)
 
     research_parser = subparsers.add_parser("research", help="Run research experiments.")
     research_subparsers = research_parser.add_subparsers(dest="research_command", required=True)
@@ -293,14 +400,133 @@ def handle_data_import_auction_cache(args: argparse.Namespace) -> None:
     write_json_object(result)
 
 
+def handle_data_status(args: argparse.Namespace) -> None:
+    write_json_object(SQLiteStore(args.db).data_status())
+
+
+def handle_data_refresh_market_cache(args: argparse.Namespace) -> None:
+    result = refresh_market_daily_cache(
+        AkshareProvider(),
+        config=MarketCacheRefreshConfig(
+            db_path=args.db,
+            adjust=args.adjust,
+            start=args.start,
+            end=args.end,
+            probe_symbol=args.probe_symbol,
+            limit=args.limit,
+            symbols=tuple(args.symbol),
+            retries=args.retries,
+            retry_sleep_seconds=args.retry_sleep,
+            request_sleep_seconds=args.request_sleep,
+            dry_run=args.dry_run,
+        ),
+    )
+    write_json_object({"refresh": result})
+
+
+def handle_screen_list(args: argparse.Namespace) -> None:
+    del args
+    write_json_lines(available_strategy_specs())
+
+
+def handle_screen_run(args: argparse.Namespace) -> None:
+    bars = load_screen_bars(args)
+    auction_profile = load_latest_auction_profile(args, bars)
+    candidate = strategy_from_args(args).evaluate(
+        args.symbol,
+        bars,
+        auction_profile=auction_profile,
+    )
+    write_json_object(
+        {
+            "symbol": args.symbol,
+            "strategy": args.strategy,
+            "as_of": effective_end(args),
+            "bar_count": len(bars),
+            "candidate": candidate,
+            "auction_profile": auction_profile,
+        }
+    )
+
+
+def handle_screen_candidates(args: argparse.Namespace) -> None:
+    as_of = effective_end(args)
+    result = run_cached_candidate_screen(
+        config=CandidateScreenConfig(
+            db_path=args.db,
+            as_of=as_of,
+            adjust=args.adjust,
+            lookback=args.lookback,
+            top=args.top,
+            limit=args.limit,
+            auction_provider=args.auction_provider,
+            symbols=tuple(args.symbol),
+        ),
+        strategy=strategy_from_args(args),
+    )
+    write_json_object({"screen": result})
+
+
+def handle_screen_morning(args: argparse.Namespace) -> None:
+    result = run_morning_screen(
+        config=MorningScreenConfig(
+            db_path=args.db,
+            trade_date=args.trade_date,
+            horizon=args.horizon,
+            strategy_id=args.strategy,
+            adjust=args.adjust,
+            lookback=args.lookback,
+            top=args.top,
+            limit=args.limit,
+            auction_provider=args.auction_provider,
+            symbols=tuple(args.symbol),
+        ),
+        strategy=morning_strategy_from_args(args),
+    )
+    write_json_object({"morning_screen": result})
+
+
+def handle_plan_trade(args: argparse.Namespace) -> None:
+    result = run_morning_screen(
+        config=MorningScreenConfig(
+            db_path=args.db,
+            trade_date=args.trade_date,
+            horizon=args.horizon,
+            strategy_id=args.strategy,
+            adjust=args.adjust,
+            lookback=args.lookback,
+            top=1,
+            limit=1,
+            auction_provider=args.auction_provider,
+            symbols=(args.symbol,),
+        ),
+        strategy=morning_strategy_from_args(args),
+    )
+    row = result.results[0] if result.results else None
+    write_json_object(
+        {
+            "symbol": args.symbol,
+            "trade_date": args.trade_date,
+            "horizon": args.horizon,
+            "strategy_id": result.strategy_id,
+            "status": row.status if row is not None else "not_found",
+            "candidate": row.candidate if row is not None else None,
+            "trade_plan": row.trade_plan if row is not None else None,
+            "auction_profile": row.auction_profile if row is not None else None,
+            "latest_daily_date": row.latest_daily_date if row is not None else None,
+            "error": row.error if row is not None else None,
+        }
+    )
+
+
 def handle_screen_breakout(args: argparse.Namespace) -> None:
-    bars = read_daily_bars_jsonl(args.bars)
+    bars = load_jsonl_bars_for_args(args)
     candidate = strategy_from_args(args).evaluate(args.symbol, bars)
     write_json_object({"candidate": candidate})
 
 
 def handle_signal_breakout(args: argparse.Namespace) -> None:
-    bars = read_daily_bars_jsonl(args.bars)
+    bars = load_jsonl_bars_for_args(args)
     strategy = strategy_from_args(args)
     candidate = strategy.evaluate(args.symbol, bars)
     signal = None
@@ -316,7 +542,7 @@ def handle_signal_breakout(args: argparse.Namespace) -> None:
 
 
 def handle_backtest_breakout(args: argparse.Namespace) -> None:
-    bars = read_daily_bars_jsonl(args.bars)
+    bars = load_jsonl_bars_for_args(args)
     result = run_breakout_backtest(
         args.symbol,
         bars,
@@ -326,8 +552,33 @@ def handle_backtest_breakout(args: argparse.Namespace) -> None:
     write_json_object({"backtest": result})
 
 
+def handle_backtest_morning(args: argparse.Namespace) -> None:
+    bars = SQLiteStore(args.db).get_daily_bars(
+        args.symbol,
+        start=args.start,
+        end=args.end,
+        adjust=args.adjust,
+    )
+    auction_profiles = load_auction_profile_map(
+        db_path=args.db,
+        symbol=args.symbol,
+        start=args.start,
+        end=args.end,
+        provider=args.auction_provider,
+    )
+    result = run_morning_plan_backtest(
+        args.symbol,
+        bars,
+        horizon=args.horizon,
+        strategy=morning_strategy_from_args(args),
+        config=backtest_config_from_args(args),
+        auction_profiles=auction_profiles,
+    )
+    write_json_object({"backtest": result})
+
+
 def handle_report_breakout(args: argparse.Namespace) -> None:
-    bars = read_daily_bars_jsonl(args.bars)
+    bars = load_jsonl_bars_for_args(args)
     strategy = strategy_from_args(args)
     candidate = strategy.evaluate(args.symbol, bars)
     signal = None
@@ -353,6 +604,46 @@ def handle_report_breakout(args: argparse.Namespace) -> None:
     )
     path = write_markdown_report(args.output, content)
     write_json_object({"path": str(path), "symbol": args.symbol})
+
+
+def handle_web_dashboard(args: argparse.Namespace) -> None:
+    bars = load_jsonl_bars_for_args(args)
+    strategy = strategy_from_args(args)
+    backtest_config = backtest_config_from_args(args)
+    candidate = strategy.evaluate(args.symbol, bars)
+    signal = None
+    if candidate is not None:
+        signal = build_breakout_signal(
+            candidate,
+            bars,
+            atr_window=args.atr_window,
+            stop_atr_multiple=args.stop_atr_multiple,
+            take_profit_r_multiple=args.take_profit_r_multiple,
+        )
+    backtest = run_breakout_backtest(
+        args.symbol,
+        bars,
+        strategy=strategy,
+        config=backtest_config,
+    )
+    commands = dashboard_commands(args)
+    content = build_dashboard_html(
+        title=args.title,
+        candidate=candidate,
+        signal=signal,
+        backtest=backtest,
+        bars=bars,
+        strategy=strategy,
+        backtest_config=backtest_config,
+        source_path=args.bars,
+        commands=commands,
+    )
+    path = write_dashboard_html(args.output, content)
+    write_json_object({"path": str(path), "symbol": args.symbol})
+
+
+def handle_web_serve(args: argparse.Namespace) -> None:
+    serve_app(host=args.host, port=args.port, workspace=Path.cwd())
 
 
 def handle_research_auction_compare(args: argparse.Namespace) -> None:
@@ -433,9 +724,60 @@ def handle_scan_market(args: argparse.Namespace) -> None:
 def add_bars_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--bars", required=True, help="Path to daily bars JSONL.")
     parser.add_argument("--symbol", required=True)
+    parser.add_argument("--as-of", type=parse_cli_date, default=None)
 
 
-def add_strategy_args(parser: argparse.ArgumentParser) -> None:
+def add_screen_source_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--bars", default=None, help="Path to daily bars JSONL.")
+    parser.add_argument("--db", default=None, help="SQLite cache path.")
+    parser.add_argument("--symbol", required=True)
+    parser.add_argument("--start", type=parse_cli_date, default=None)
+    parser.add_argument("--end", type=parse_cli_date, default=None)
+    parser.add_argument("--as-of", type=parse_cli_date, default=None)
+    parser.add_argument("--lookback", type=positive_int, default=180)
+    parser.add_argument("--adjust", choices=["raw", "qfq", "hfq"], default="hfq")
+    parser.add_argument("--auction-provider", default=None)
+    parser.add_argument("--auction-db", default=None)
+
+
+def add_morning_screen_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--db", default="data/cache/market_scan.sqlite")
+    parser.add_argument("--trade-date", required=True, type=parse_cli_date)
+    parser.add_argument("--horizon", choices=HORIZONS, default=SHORT_TERM)
+    parser.add_argument("--adjust", choices=["raw", "qfq", "hfq"], default="hfq")
+    parser.add_argument("--lookback", type=positive_int, default=180)
+    parser.add_argument("--top", type=positive_int, default=20)
+    parser.add_argument("--limit", type=positive_int, default=500)
+    parser.add_argument("--symbol", action="append", default=[])
+    parser.add_argument("--auction-provider", default="local_jingjia")
+    add_strategy_args(parser, default=None)
+
+
+def add_trade_plan_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--symbol", required=True)
+    parser.add_argument("--db", default="data/cache/market_scan.sqlite")
+    parser.add_argument("--trade-date", required=True, type=parse_cli_date)
+    parser.add_argument("--horizon", choices=HORIZONS, default=SHORT_TERM)
+    parser.add_argument("--adjust", choices=["raw", "qfq", "hfq"], default="hfq")
+    parser.add_argument("--lookback", type=positive_int, default=180)
+    parser.add_argument("--auction-provider", default="local_jingjia")
+    add_strategy_args(parser, default=None)
+
+
+def add_morning_backtest_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--symbol", required=True)
+    parser.add_argument("--db", default="data/cache/market_scan.sqlite")
+    parser.add_argument("--start", required=True, type=parse_cli_date)
+    parser.add_argument("--end", required=True, type=parse_cli_date)
+    parser.add_argument("--horizon", choices=HORIZONS, default=SHORT_TERM)
+    parser.add_argument("--adjust", choices=["raw", "qfq", "hfq"], default="hfq")
+    parser.add_argument("--auction-provider", default="local_jingjia")
+    add_strategy_args(parser, default=None)
+    add_backtest_args(parser)
+
+
+def add_strategy_args(parser: argparse.ArgumentParser, *, default: str | None = "ma_volume_breakout") -> None:
+    parser.add_argument("--strategy", default=default)
     parser.add_argument("--short-window", type=positive_int, default=5)
     parser.add_argument("--medium-window", type=positive_int, default=20)
     parser.add_argument("--long-window", type=positive_int, default=60)
@@ -464,10 +806,14 @@ def strategy_from_args(
     args: argparse.Namespace,
     *,
     use_auction_filters: bool = True,
-) -> MovingAverageVolumeBreakoutStrategy:
+) -> ScreeningStrategy:
     min_auction_score = args.min_auction_score if use_auction_filters else None
     auction_score_weight = args.auction_score_weight if use_auction_filters else 0.0
-    return MovingAverageVolumeBreakoutStrategy(
+    strategy_id = getattr(args, "strategy", "ma_volume_breakout")
+    if not use_auction_filters and strategy_id == "auction_assisted_breakout":
+        strategy_id = "ma_volume_breakout"
+    return build_screening_strategy(
+        strategy_id,
         short_window=args.short_window,
         medium_window=args.medium_window,
         long_window=args.long_window,
@@ -477,6 +823,85 @@ def strategy_from_args(
         min_auction_score=min_auction_score,
         auction_score_weight=auction_score_weight,
     )
+
+
+def morning_strategy_from_args(args: argparse.Namespace) -> ScreeningStrategy | None:
+    if not getattr(args, "strategy", None):
+        return None
+    return strategy_from_args(args)
+
+
+def load_screen_bars(args: argparse.Namespace) -> list[DailyBar]:
+    if args.bars:
+        return load_jsonl_bars_for_args(args)
+    if args.db:
+        end = effective_end(args)
+        bars = SQLiteStore(args.db).get_daily_bars(
+            args.symbol,
+            start=args.start,
+            end=end,
+            adjust=args.adjust,
+        )
+        return bars_up_to(bars, as_of=end, lookback=args.lookback)
+    raise ValueError("screen run needs --bars or --db")
+
+
+def load_jsonl_bars_for_args(args: argparse.Namespace) -> list[DailyBar]:
+    bars = read_daily_bars_jsonl(args.bars)
+    end = effective_end(args)
+    start = getattr(args, "start", None)
+    filtered = [bar for bar in bars if start is None or bar.trade_date >= start]
+    return bars_up_to(
+        filtered,
+        as_of=end,
+        lookback=getattr(args, "lookback", None),
+    )
+
+
+def load_latest_auction_profile(
+    args: argparse.Namespace,
+    bars: Sequence[DailyBar],
+) -> Any:
+    provider = getattr(args, "auction_provider", None)
+    if not provider or not bars:
+        return None
+    db_path = getattr(args, "auction_db", None) or getattr(args, "db", None)
+    if not db_path:
+        return None
+    profiles = SQLiteStore(db_path).get_auction_profiles(
+        args.symbol,
+        start=bars[-1].trade_date,
+        end=bars[-1].trade_date,
+        provider=provider,
+    )
+    return profiles[-1] if profiles else None
+
+
+def load_auction_profile_map(
+    *,
+    db_path: str,
+    symbol: str,
+    start: date | None,
+    end: date | None,
+    provider: str | None,
+) -> dict[date, Any]:
+    if not provider:
+        return {}
+    profiles = SQLiteStore(db_path).get_auction_profiles(
+        symbol,
+        start=start,
+        end=end,
+        provider=provider,
+    )
+    return {profile.trade_date: profile for profile in profiles}
+
+
+def effective_end(args: argparse.Namespace) -> date | None:
+    end = getattr(args, "end", None)
+    as_of = getattr(args, "as_of", None)
+    if end is not None and as_of is not None and end != as_of:
+        raise ValueError("--end and --as-of must match when both are provided")
+    return as_of or end
 
 
 def backtest_config_from_args(args: argparse.Namespace) -> BacktestConfig:
@@ -489,6 +914,100 @@ def backtest_config_from_args(args: argparse.Namespace) -> BacktestConfig:
         stop_atr_multiple=args.stop_atr_multiple,
         take_profit_r_multiple=args.take_profit_r_multiple,
     )
+
+
+def dashboard_commands(args: argparse.Namespace) -> list[str]:
+    base = [
+        "conda",
+        "run",
+        "-n",
+        "agent",
+        "env",
+        "PYTHONPATH=src",
+        "python",
+        "-m",
+        "gupiao.cli",
+    ]
+    strategy_args = [
+        "--strategy",
+        getattr(args, "strategy", "ma_volume_breakout"),
+        "--short-window",
+        str(args.short_window),
+        "--medium-window",
+        str(args.medium_window),
+        "--long-window",
+        str(args.long_window),
+        "--volume-window",
+        str(args.volume_window),
+        "--breakout-window",
+        str(args.breakout_window),
+        "--min-volume-ratio",
+        str(args.min_volume_ratio),
+    ]
+    if args.min_auction_score is not None:
+        strategy_args.extend(["--min-auction-score", str(args.min_auction_score)])
+    strategy_args.extend(["--auction-score-weight", str(args.auction_score_weight)])
+    signal_args = [
+        "--atr-window",
+        str(args.atr_window),
+        "--stop-atr-multiple",
+        str(args.stop_atr_multiple),
+        "--take-profit-r-multiple",
+        str(args.take_profit_r_multiple),
+    ]
+    backtest_args = [
+        "--initial-cash",
+        str(args.initial_cash),
+        "--commission-rate",
+        str(args.commission_rate),
+        "--slippage-rate",
+        str(args.slippage_rate),
+        "--max-holding-bars",
+        str(args.max_holding_bars),
+    ]
+    common = ["--bars", args.bars, "--symbol", args.symbol]
+    if getattr(args, "as_of", None) is not None:
+        common.extend(["--as-of", args.as_of.isoformat()])
+    return [
+        shell_command([*base, "screen", "breakout", *common, *strategy_args]),
+        shell_command([*base, "signal", "breakout", *common, *strategy_args, *signal_args]),
+        shell_command(
+            [
+                *base,
+                "backtest",
+                "breakout",
+                *common,
+                *strategy_args,
+                *signal_args,
+                *backtest_args,
+            ]
+        ),
+        shell_command(
+            [
+                *base,
+                "web",
+                "dashboard",
+                *common,
+                *strategy_args,
+                *signal_args,
+                *backtest_args,
+                "--title",
+                args.title,
+                "--output",
+                args.output,
+            ]
+        ),
+    ]
+
+
+def shell_command(parts: Sequence[str]) -> str:
+    return " ".join(shell_quote(part) for part in parts)
+
+
+def shell_quote(value: str) -> str:
+    if value and all(item.isalnum() or item in "._/:=-" for item in value):
+        return value
+    return "'" + value.replace("'", "'\"'\"'") + "'"
 
 
 def write_json_lines(records: Any, *, limit: int | None = None) -> None:
@@ -506,7 +1025,7 @@ def write_json_object(record: Any) -> None:
 
 def to_jsonable(value: Any) -> Any:
     if is_dataclass(value):
-        return to_jsonable(asdict(value))
+        return to_jsonable(asdict(value))  # type: ignore[arg-type]
     if isinstance(value, dict):
         return {key: to_jsonable(item) for key, item in value.items()}
     if isinstance(value, list):

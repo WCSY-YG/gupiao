@@ -84,6 +84,27 @@ class SQLiteStoreTest(TestCase):
                 adjust="hfq",
             )
             self.assertEqual(bars, [second])
+            self.assertEqual(
+                store.list_daily_bar_symbols(
+                    start=date(2026, 6, 1),
+                    end=date(2026, 6, 30),
+                    adjust="hfq",
+                ),
+                ["000001"],
+            )
+            self.assertEqual(
+                store.daily_bar_date_range(adjust="hfq"),
+                (date(2026, 6, 9), date(2026, 6, 9)),
+            )
+            self.assertEqual(
+                store.list_daily_bar_dates(adjust="hfq"),
+                [date(2026, 6, 9)],
+            )
+            status = store.data_status()
+            self.assertEqual(status["daily_bars"]["rows"], 1)
+            self.assertEqual(status["daily_bars"]["symbols"], 1)
+            self.assertEqual(status["daily_bars"]["start"], "2026-06-09")
+            self.assertIn("hfq", status["daily_bars"]["adjusts"])
 
     def test_auction_profile_upsert_and_query(self) -> None:
         with TemporaryDirectory() as directory:

@@ -7,12 +7,13 @@ import signal
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, is_dataclass
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from pathlib import Path
 from threading import current_thread, main_thread
 from typing import Any
 
 from gupiao.backtest import BacktestConfig, run_breakout_backtest
+from gupiao.compat import UTC
 from gupiao.data import (
     DailyBar,
     DataProvider,
@@ -23,7 +24,7 @@ from gupiao.data import (
 )
 from gupiao.reports import format_pct
 from gupiao.signals import build_breakout_signal
-from gupiao.strategies import MovingAverageVolumeBreakoutStrategy
+from gupiao.strategies import MovingAverageVolumeBreakoutStrategy, ScreeningStrategy
 
 DEFAULT_SCAN_START = date(2023, 6, 10)
 DEFAULT_SCAN_END = date(2026, 6, 10)
@@ -89,7 +90,7 @@ def run_market_scan(
     *,
     config: MarketScanConfig | None = None,
     store: SQLiteStore | None = None,
-    strategy: MovingAverageVolumeBreakoutStrategy | None = None,
+    strategy: ScreeningStrategy | None = None,
     backtest_config: BacktestConfig | None = None,
     sleep: Callable[[float], None] = time.sleep,
 ) -> MarketScanResult:
@@ -151,7 +152,7 @@ def scan_instrument(
     provider: DataProvider,
     store: SQLiteStore,
     config: MarketScanConfig,
-    strategy: MovingAverageVolumeBreakoutStrategy,
+    strategy: ScreeningStrategy,
     backtest_config: BacktestConfig,
     sleep: Callable[[float], None],
 ) -> ScanSymbolResult:
@@ -510,7 +511,7 @@ def write_json_line(file: Any, value: Any) -> None:
 
 def to_jsonable(value: Any) -> Any:
     if is_dataclass(value):
-        return to_jsonable(asdict(value))
+        return to_jsonable(asdict(value))  # type: ignore[arg-type]
     if isinstance(value, dict):
         return {key: to_jsonable(item) for key, item in value.items()}
     if isinstance(value, list):
