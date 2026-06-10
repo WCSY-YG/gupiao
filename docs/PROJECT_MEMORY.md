@@ -341,6 +341,15 @@ MVP 优先参考项目：
 - 新增 Web action `data_monitor_auction` 和专业模式按钮“监控并写入竞价”；普通模式继续保持早盘选股/买卖计划为主，不增加复杂参数。
 - 当天早盘监控完成后，选股直接用 `screen morning --trade-date D --auction-provider akshare_live --adjust raw`；历史回测和本地 RAR 导入竞价继续用 `local_jingjia`。
 
+## 2026-06-10 22:47 CST Web 预约竞价监控记忆
+
+- 用户进一步明确 Web 端需要“前一天晚上或竞价前点按钮，系统挂机等待第二天竞价数据，并顺便获取第一天/前置市场 K 线情况”；上一轮的 `data_monitor_auction` 是即时执行，本轮补齐后台预约模式。
+- 新增 Web action `data_schedule_auction_monitor`：点击后立即返回 `job_id`，本地 Web 服务后台线程先执行前置 raw 日 K 补齐，再等到 `wait_until_time`，默认 `09:25:10`，执行 `monitor_live_auction` 抓取当日竞价并写入 `auction_minutes`/`auction_profiles`。
+- 新增 Web action `data_auction_monitor_job`：不传 `job_id` 返回最近 20 个预约任务，传 `job_id` 返回指定任务详情；任务状态包括 `queued`、`preloading_daily`、`waiting`、`running_auction`、`complete`、`failed`。
+- 普通模式首页新增“预约竞价”卡片，专业模式“竞价与缓存”面板新增“预约竞价监控”和“查看监控任务”按钮；结果摘要会显示任务 ID、状态、运行时间、剩余秒、前置日 K 刷新和竞价抓取摘要。
+- 设计边界：这是 Web 服务进程内的轻量后台线程，不是系统级定时器；浏览器可以不一直打开，但 `gupiao web serve` 进程必须持续运行到任务完成。服务重启后内存中的预约任务状态不会恢复；需要更强可靠性时再升级为持久化任务表或 cron/systemd。
+- 预约时仍坚持时间边界：前置日 K 只补 `trade_date` 之前的 raw 上下文；如果 AKShare 返回的竞价日期不是预约的 `trade_date`，监控结果会显示 `date_mismatch`，不会误写旧竞价为新竞价。
+
 ## 注意事项
 
 - 当前项目定位为研究与辅助分析工具，不默认接入真实交易。

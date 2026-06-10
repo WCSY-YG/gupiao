@@ -493,6 +493,7 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli web serve --host 127.
 浏览器打开 `http://127.0.0.1:8765/`。工作台默认是普通模式，只保留高频入口：
 
 - `查看缓存`：查看日 K 和竞价缓存覆盖日期。
+- `预约竞价`：前一天晚上或竞价前启动后台任务，先补交易日前置 raw 日 K，等到指定时间后抓取当日竞价并写入本地缓存。
 - `开始选股`：按交易日期和周期运行早盘选股，默认用本地 `local_jingjia` 竞价画像。
 - `查看计划`：对单只股票生成早盘买卖计划，直接显示买入时点、参考价、止损、止盈和不买条件。
 - `查看缺口`：dry-run 查看日 K 缓存缺少哪些交易日。
@@ -539,6 +540,44 @@ conda run -n agent env PYTHONPATH=src python -m gupiao.cli web serve --host 127.
     "request_sleep": 0.2
   }
 }
+```
+
+`data_monitor_auction` 是即时抓取，适合 09:25 后手动点击。前一天晚上或竞价前要“挂机等待”时，用后台预约 action：
+
+```json
+{
+  "action": "data_schedule_auction_monitor",
+  "params": {
+    "db_path": "data/cache/market_scan.sqlite",
+    "trade_date": "2026-06-11",
+    "wait_until_time": "09:25:10",
+    "auction_provider": "akshare_live",
+    "daily_adjust": "raw",
+    "preload_daily_context": true,
+    "cache_daily_bars": true,
+    "cache_auction_minutes": true,
+    "request_sleep": 0.2
+  }
+}
+```
+
+预约后会立即返回 `job_id`，本地 Web 服务进程会在后台执行：
+
+- 先补 `trade_date` 前一交易日及最近 lookback 的 raw 日 K 上下文。
+- 等到 `wait_until_time`，默认 `09:25:10`。
+- 拉取 `trade_date` 当日竞价分钟，写入 `auction_minutes`，并生成 `akshare_live` 竞价画像写入 `auction_profiles`。
+- 如果 AKShare 返回的竞价日期不是 `trade_date`，任务会记为日期不符，不会把旧竞价误写为新数据。
+
+查看后台任务状态：
+
+```json
+{"action":"data_auction_monitor_job","params":{}}
+```
+
+指定任务 ID 查看：
+
+```json
+{"action":"data_auction_monitor_job","params":{"job_id":"填返回的 job_id"}}
 ```
 
 ```json

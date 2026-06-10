@@ -71,6 +71,8 @@ class WebDashboardTest(TestCase):
         self.assertIn('data-action="data_status"', html)
         self.assertIn('data-action="data_refresh_market_cache"', html)
         self.assertIn('data-action="data_monitor_auction"', html)
+        self.assertIn('data-action="data_schedule_auction_monitor"', html)
+        self.assertIn('data-action="data_auction_monitor_job"', html)
         self.assertIn('data-action="auction_rolling"', html)
         self.assertIn('id="modeToggle"', html)
         self.assertIn('data-tab="home"', html)
@@ -78,7 +80,15 @@ class WebDashboardTest(TestCase):
         self.assertIn("开始选股", html)
         self.assertIn("早盘选股", html)
         self.assertIn("买卖计划", html)
+        self.assertIn("预约竞价", html)
         self.assertNotIn("/tmp/gupiao_web_bars.jsonl", html)
+
+    def test_run_web_action_lists_auction_monitor_jobs(self) -> None:
+        with TemporaryDirectory() as directory:
+            result = run_web_action("data_auction_monitor_job", {}, Path(directory))
+
+            self.assertIn("auction_monitor_jobs", result)
+            self.assertIsInstance(result["auction_monitor_jobs"], list)
 
     def test_run_web_action_quick_analysis(self) -> None:
         with TemporaryDirectory() as directory:

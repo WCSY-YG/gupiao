@@ -5,9 +5,12 @@
 from __future__ import annotations
 
 import json
+import threading
+import time as time_module
+import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, is_dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time as datetime_time, timedelta
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -66,6 +69,8 @@ from gupiao.strategies import (
 from gupiao.web.dashboard import build_dashboard_html, write_dashboard_html
 
 ActionHandler = Callable[[dict[str, Any], Path], dict[str, Any]]
+AUCTION_MONITOR_JOBS: dict[str, dict[str, Any]] = {}
+AUCTION_MONITOR_JOB_LOCK = threading.Lock()
 
 
 def serve_app(
@@ -189,6 +194,8 @@ def run_web_action(action: str, params: dict[str, Any], workspace: Path | None =
         "data_daily": action_data_daily,
         "data_pre_market": action_data_pre_market,
         "data_monitor_auction": action_data_monitor_auction,
+        "data_schedule_auction_monitor": action_data_schedule_auction_monitor,
+        "data_auction_monitor_job": action_data_auction_monitor_job,
         "data_update_daily": action_data_update_daily,
         "data_status": action_data_status,
         "data_refresh_market_cache": action_data_refresh_market_cache,
@@ -320,27 +327,9 @@ def action_data_pre_market(params: dict[str, Any], workspace: Path) -> dict[str,
 
 
 def action_data_monitor_auction(params: dict[str, Any], workspace: Path) -> dict[str, Any]:
-    db_path = resolve_path(str_param(params, "db_path", "data/cache/market_scan.sqlite"), workspace)
-    symbols = tuple(item.strip() for item in str_param(params, "symbols", "").split(",") if item.strip())
     result = monitor_live_auction(
         AkshareProvider(),
-        config=AuctionMonitorConfig(
-            db_path=db_path,
-            trade_date=date_param(params, "trade_date"),
-            auction_provider=str_param(params, "auction_provider", "akshare_live"),
-            daily_adjust=str_param(params, "daily_adjust", "raw"),
-            start_time=str_param(params, "start_time", "09:15:00"),
-            end_time=str_param(params, "end_time", "09:25:00"),
-            average_volume_window=int_param(params, "average_volume_window", 20) or 20,
-            daily_lookback_days=int_param(params, "daily_lookback_days", 45) or 45,
-            limit=int_param(params, "limit", None),
-            symbols=symbols,
-            retries=int_param(params, "retries", 3) or 3,
-            retry_sleep_seconds=float_param(params, "retry_sleep", 1.0) or 0.0,
-            request_sleep_seconds=float_param(params, "request_sleep", 0.0) or 0.0,
-            cache_daily_bars=bool_param(params, "cache_daily_bars", True),
-            cache_auction_minutes=bool_param(params, "cache_auction_minutes", True),
-        ),
+        config=auction_monitor_config_from_params(params, workspace),
     )
     return {
         "auction_monitor": auction_monitor_summary(
@@ -348,6 +337,40 @@ def action_data_monitor_auction(params: dict[str, Any], workspace: Path) -> dict
             int_param(params, "detail_limit", 20) or 20,
         )
     }
+
+
+def action_data_schedule_auction_monitor(params: dict[str, Any], workspace: Path) -> dict[str, Any]:
+    config = auction_monitor_config_from_params(params, workspace)
+    if config.trade_date is None:
+        raise ValueError("trade_date is required for scheduled auction monitor")
+    wait_until = parse_time_param(str_param(params, "wait_until_time", "09:25:10"))
+    run_at = datetime.combine(config.trade_date, wait_until)
+    preload_daily_context = bool_param(params, "preload_daily_context", True)
+    detail_limit = int_param(params, "detail_limit", 20) or 20
+    job_id = uuid.uuid4().hex[:12]
+    create_auction_monitor_job(
+        job_id=job_id,
+        run_at=run_at,
+        config=config,
+        detail_limit=detail_limit,
+        preload_daily_context=preload_daily_context,
+    )
+    thread = threading.Thread(
+        target=run_scheduled_auction_monitor_job,
+        args=(job_id, config, run_at, detail_limit, preload_daily_context),
+        name=f"auction-monitor-{job_id}",
+        daemon=True,
+    )
+    thread.start()
+    return {"auction_monitor_job": get_auction_monitor_job(job_id)}
+
+
+def action_data_auction_monitor_job(params: dict[str, Any], workspace: Path) -> dict[str, Any]:
+    del workspace
+    job_id = optional_str(params, "job_id")
+    if job_id:
+        return {"auction_monitor_job": get_auction_monitor_job(job_id)}
+    return {"auction_monitor_jobs": list_auction_monitor_jobs()}
 
 
 def action_data_update_daily(params: dict[str, Any], workspace: Path) -> dict[str, Any]:
@@ -1053,6 +1076,158 @@ def auction_monitor_summary(result: Any, detail_limit: int) -> dict[str, Any]:
     }
 
 
+def auction_monitor_config_from_params(
+    params: Mapping[str, Any],
+    workspace: Path,
+) -> AuctionMonitorConfig:
+    db_path = resolve_path(str_param(params, "db_path", "data/cache/market_scan.sqlite"), workspace)
+    return AuctionMonitorConfig(
+        db_path=db_path,
+        trade_date=date_param(params, "trade_date"),
+        auction_provider=str_param(params, "auction_provider", "akshare_live"),
+        daily_adjust=str_param(params, "daily_adjust", "raw"),
+        start_time=str_param(params, "start_time", "09:15:00"),
+        end_time=str_param(params, "end_time", "09:25:00"),
+        average_volume_window=int_param(params, "average_volume_window", 20) or 20,
+        daily_lookback_days=int_param(params, "daily_lookback_days", 45) or 45,
+        limit=int_param(params, "limit", None),
+        symbols=symbols_param(params),
+        retries=int_param(params, "retries", 3) or 3,
+        retry_sleep_seconds=float_param(params, "retry_sleep", 1.0) or 0.0,
+        request_sleep_seconds=float_param(params, "request_sleep", 0.0) or 0.0,
+        cache_daily_bars=bool_param(params, "cache_daily_bars", True),
+        cache_auction_minutes=bool_param(params, "cache_auction_minutes", True),
+    )
+
+
+def symbols_param(params: Mapping[str, Any]) -> tuple[str, ...]:
+    return tuple(
+        item.strip()
+        for item in str_param(params, "symbols", "").split(",")
+        if item.strip()
+    )
+
+
+def create_auction_monitor_job(
+    *,
+    job_id: str,
+    run_at: datetime,
+    config: AuctionMonitorConfig,
+    detail_limit: int,
+    preload_daily_context: bool,
+) -> None:
+    now = datetime.now()
+    with AUCTION_MONITOR_JOB_LOCK:
+        AUCTION_MONITOR_JOBS[job_id] = {
+            "job_id": job_id,
+            "status": "queued",
+            "created_at": now,
+            "updated_at": now,
+            "run_at": run_at,
+            "remaining_seconds": max(0, int((run_at - now).total_seconds())),
+            "preload_daily_context": preload_daily_context,
+            "detail_limit": detail_limit,
+            "config": {
+                "db_path": str(config.db_path),
+                "trade_date": config.trade_date,
+                "auction_provider": config.auction_provider,
+                "daily_adjust": config.daily_adjust,
+                "start_time": config.start_time,
+                "end_time": config.end_time,
+                "daily_lookback_days": config.daily_lookback_days,
+                "average_volume_window": config.average_volume_window,
+                "limit": config.limit,
+                "symbols": config.symbols,
+            },
+        }
+
+
+def update_auction_monitor_job(job_id: str, **updates: Any) -> None:
+    with AUCTION_MONITOR_JOB_LOCK:
+        job = AUCTION_MONITOR_JOBS.get(job_id)
+        if job is None:
+            return
+        job.update(updates)
+        job["updated_at"] = datetime.now()
+
+
+def get_auction_monitor_job(job_id: str) -> dict[str, Any]:
+    with AUCTION_MONITOR_JOB_LOCK:
+        job = AUCTION_MONITOR_JOBS.get(job_id)
+        if job is None:
+            raise ValueError(f"unknown auction monitor job: {job_id}")
+        return dict(job)
+
+
+def list_auction_monitor_jobs() -> list[dict[str, Any]]:
+    with AUCTION_MONITOR_JOB_LOCK:
+        jobs = [dict(job) for job in AUCTION_MONITOR_JOBS.values()]
+    return sorted(jobs, key=lambda item: item["created_at"], reverse=True)[:20]
+
+
+def run_scheduled_auction_monitor_job(
+    job_id: str,
+    config: AuctionMonitorConfig,
+    run_at: datetime,
+    detail_limit: int,
+    preload_daily_context: bool,
+) -> None:
+    try:
+        if preload_daily_context and config.cache_daily_bars and config.trade_date is not None:
+            update_auction_monitor_job(job_id, status="preloading_daily")
+            daily_refresh = refresh_market_daily_cache(
+                AkshareProvider(),
+                config=MarketCacheRefreshConfig(
+                    db_path=config.db_path,
+                    adjust=config.daily_adjust,
+                    start=config.trade_date - timedelta(days=config.daily_lookback_days),
+                    end=config.trade_date - timedelta(days=1),
+                    limit=config.limit,
+                    symbols=config.symbols,
+                    retries=config.retries,
+                    retry_sleep_seconds=config.retry_sleep_seconds,
+                    request_sleep_seconds=config.request_sleep_seconds,
+                    dry_run=False,
+                ),
+            )
+            update_auction_monitor_job(job_id, daily_refresh=daily_refresh)
+
+        wait_until_run_at(job_id, run_at)
+        update_auction_monitor_job(job_id, status="running_auction", remaining_seconds=0)
+        result = monitor_live_auction(AkshareProvider(), config=config)
+        update_auction_monitor_job(
+            job_id,
+            status="complete",
+            auction_monitor=auction_monitor_summary(result, detail_limit),
+        )
+    except Exception as exc:  # noqa: BLE001 - background job must surface errors in UI.
+        update_auction_monitor_job(
+            job_id,
+            status="failed",
+            error=f"{type(exc).__name__}: {exc}",
+        )
+
+
+def wait_until_run_at(job_id: str, run_at: datetime) -> None:
+    while True:
+        remaining = (run_at - datetime.now()).total_seconds()
+        if remaining <= 0:
+            return
+        update_auction_monitor_job(
+            job_id,
+            status="waiting",
+            remaining_seconds=int(remaining),
+        )
+        time_module.sleep(min(60.0, max(1.0, remaining)))
+
+
+def parse_time_param(value: str) -> datetime_time:
+    try:
+        return datetime_time.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("wait_until_time must be HH:MM or HH:MM:SS") from exc
+
+
 def resolve_path(value: str | Path, workspace: Path) -> Path:
     path = Path(value).expanduser()
     if not path.is_absolute():
@@ -1527,6 +1702,28 @@ APP_HTML = r"""<!doctype html>
                 <button type="button" data-action="data_status" data-form="homeStatusForm">查看缓存</button>
               </div>
             </form>
+            <form id="homeAuctionScheduleForm" class="panel action-card">
+              <h3>预约竞价</h3>
+              <p class="mini">前一晚或竞价前启动后台任务，先补前置日K，到点后抓当天竞价。</p>
+              <label>交易日期<input name="trade_date" value="" placeholder="例如 2026-06-11"></label>
+              <label>等待到<input name="wait_until_time" value="09:25:10"></label>
+              <div class="hidden-fields">
+                <input name="db_path" value="data/cache/market_scan.sqlite">
+                <input name="auction_provider" value="akshare_live">
+                <input name="daily_adjust" value="raw">
+                <input name="preload_daily_context" value="true">
+                <input name="cache_daily_bars" value="true">
+                <input name="cache_auction_minutes" value="true">
+                <input name="request_sleep" value="0.2">
+                <input name="retry_sleep" value="1">
+                <input name="retries" value="3">
+                <input name="detail_limit" value="20">
+              </div>
+              <div class="row">
+                <button type="button" data-action="data_schedule_auction_monitor" data-form="homeAuctionScheduleForm">预约监控</button>
+                <button type="button" class="secondary" data-action="data_auction_monitor_job" data-form="homeAuctionScheduleForm">查看任务</button>
+              </div>
+            </form>
             <form id="homeCandidateForm" class="panel action-card">
               <h3>早盘选股</h3>
               <p class="mini">用交易日竞价和前一日K线选出可开盘观察的候选。</p>
@@ -1664,6 +1861,9 @@ APP_HTML = r"""<!doctype html>
               <label>日K口径<select name="daily_adjust"><option>raw</option><option>hfq</option><option>qfq</option></select></label>
               <label>缓存日K<select name="cache_daily_bars"><option value="true">true</option><option value="false">false</option></select></label>
               <label>缓存竞价分钟<select name="cache_auction_minutes"><option value="true">true</option><option value="false">false</option></select></label>
+              <label>预约等待到<input name="wait_until_time" value="09:25:10"></label>
+              <label>先补前置日K<select name="preload_daily_context"><option value="true">true</option><option value="false">false</option></select></label>
+              <label>任务 ID<input name="job_id" value=""></label>
               <label>明细数量<input name="detail_limit" value="20"></label>
               <label>重试<input name="retries" value="3"></label>
               <label>请求间隔<input name="request_sleep" value="0"></label>
@@ -1673,6 +1873,8 @@ APP_HTML = r"""<!doctype html>
             <div class="row">
               <button type="button" data-action="data_pre_market" data-form="cacheForm">拉取竞价</button>
               <button type="button" class="secondary" data-action="data_monitor_auction" data-form="cacheForm">监控并写入竞价</button>
+              <button type="button" class="secondary" data-action="data_schedule_auction_monitor" data-form="cacheForm">预约竞价监控</button>
+              <button type="button" class="secondary" data-action="data_auction_monitor_job" data-form="cacheForm">查看监控任务</button>
               <button type="button" class="secondary" data-action="import_daily_cache" data-form="cacheForm">导入日K缓存</button>
               <button type="button" class="secondary" data-action="data_refresh_market_cache" data-form="cacheForm">补齐日K缺口</button>
               <button type="button" class="secondary" data-action="import_auction_cache" data-form="cacheForm">导入竞价缓存</button>
@@ -2018,6 +2220,10 @@ APP_HTML = r"""<!doctype html>
         summary.innerHTML = refreshSummary(result.refresh);
       } else if (result.auction_monitor) {
         summary.innerHTML = auctionMonitorSummary(result.auction_monitor);
+      } else if (result.auction_monitor_job) {
+        summary.innerHTML = auctionMonitorJobSummary(result.auction_monitor_job);
+      } else if (result.auction_monitor_jobs) {
+        summary.innerHTML = auctionMonitorJobsSummary(result.auction_monitor_jobs);
       } else if (result.rolling) {
         summary.innerHTML = rollingSummary(result);
       } else if (result.strategies) {
@@ -2057,6 +2263,26 @@ APP_HTML = r"""<!doctype html>
         ["竞价画像写入", monitor.auction_profiles_written ?? "-"],
         ["日K写入", monitor.daily_rows_written ?? "-"]
       ]) + table);
+    }
+
+    function auctionMonitorJobSummary(job) {
+      const monitor = job.auction_monitor ? auctionMonitorSummary(job.auction_monitor) : "";
+      const refresh = job.daily_refresh ? refreshSummary(job.daily_refresh) : "";
+      const error = job.error ? `<div class="summary-item"><strong>错误</strong>${escapeHtml(job.error)}</div>` : "";
+      return card("竞价预约任务", grid([
+        ["任务 ID", job.job_id || "-"],
+        ["状态", job.status || "-"],
+        ["运行时间", job.run_at || "-"],
+        ["剩余秒", job.remaining_seconds ?? "-"],
+        ["创建时间", job.created_at || "-"],
+        ["更新时间", job.updated_at || "-"]
+      ]) + error) + refresh + monitor;
+    }
+
+    function auctionMonitorJobsSummary(jobs) {
+      const rows = (jobs || []).slice(0, 10).map((job) => `<tr><td>${escapeHtml(job.job_id || "")}</td><td>${escapeHtml(job.status || "")}</td><td>${escapeHtml(job.run_at || "")}</td><td>${job.remaining_seconds ?? "-"}</td></tr>`).join("");
+      const table = rows ? `<table><thead><tr><th>任务 ID</th><th>状态</th><th>运行时间</th><th>剩余秒</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="summary-item"><strong>0</strong>暂无预约任务</div>`;
+      return card("竞价预约任务", table);
     }
 
     function screenSummary(screen) {
