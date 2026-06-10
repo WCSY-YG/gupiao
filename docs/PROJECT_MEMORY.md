@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 09:13 CST（Asia/Shanghai）
+更新时间：2026-06-10 09:23 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -69,6 +69,13 @@
 - 新增临时 SQLite 文件测试，覆盖写入、读取和增量更新。
 - 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 9 项。
 
+已经完成数据质量检查层：
+
+- `validate_instruments` 覆盖股票基础信息缺失和重复 symbol。
+- `validate_daily_bars` 覆盖重复记录、时间顺序、OHLC 合法性、负成交量/成交额/换手率和零成交量停牌提示。
+- `ValidationIssue` 提供结构化 `code`、`message`、`severity`、`symbol`、`trade_date`、`field`。
+- 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 14 项。
+
 ## 同步状态
 
 - `push_pending`：GitHub 推送凭据暂不可用，按用户最新指令先继续推进任务。
@@ -116,9 +123,9 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P1-05`：加入数据质量检查。
-2. `P2-01`：实现技术指标层。
-3. `P2-02`：实现第一个完整策略：均线多头 + 放量突破 + ATR 止损。
+1. `P2-01`：实现技术指标层。
+2. `P2-02`：实现第一个完整策略：均线多头 + 放量突破 + ATR 止损。
+3. `P2-03`：实现买卖点解释。
 4. `P3-01`：跑通单策略回测闭环。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
 

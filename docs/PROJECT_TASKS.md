@@ -1,6 +1,6 @@
 # 项目任务清单
 
-更新时间：2026-06-10 09:13 CST
+更新时间：2026-06-10 09:23 CST
 
 本文档是项目自动推进的状态源。每一轮任务开始前先读取本文件；每完成一个任务，必须更新状态并本地提交。GitHub 推送若失败，记录 `push_pending` 后继续推进。
 
@@ -16,7 +16,7 @@
 ## 当前指针
 
 - 当前阶段：Phase 1。
-- 下一项任务：`P1-05` 加入数据质量检查。
+- 下一项任务：`P2-01` 实现技术指标层。
 - 推进规则：从上到下选择第一个 `pending` 且依赖已完成的任务。
 - GitHub 更新规则：每完成一个任务，更新本清单和相关项目记忆，执行一次本地 commit；远端推送失败时记录 `push_pending`，不阻塞后续任务。
 
@@ -33,7 +33,7 @@
 | P1-02 | done | Phase 1 | 建立 Python 工程配置 | 明确依赖、运行入口、测试命令、格式化/类型检查策略 | P1-01 |
 | P1-03 | done | Phase 1 | 实现股票列表与日线数据接入接口 | 能通过 CLI 或函数获取 A 股基础列表和日线样例数据 | P1-02 |
 | P1-04 | done | Phase 1 | 设计并实现本地数据存储 | SQLite/DuckDB/Parquet 方案可写入、读取、增量更新 | P1-03 |
-| P1-05 | pending | Phase 1 | 加入数据质量检查 | 覆盖缺失值、停牌、复权、重复记录、时间顺序等基础校验 | P1-04 |
+| P1-05 | done | Phase 1 | 加入数据质量检查 | 覆盖缺失值、停牌、复权、重复记录、时间顺序等基础校验 | P1-04 |
 | P2-01 | pending | Phase 2 | 实现技术指标层 | MA、EMA、MACD、KDJ、RSI、BOLL、ATR、OBV 等可计算 | P1-05 |
 | P2-02 | pending | Phase 2 | 实现第一个 MVP 选股策略 | 均线多头 + 放量突破策略输出候选股和命中原因 | P2-01 |
 | P2-03 | pending | Phase 2 | 实现买卖点解释 | 输出入场、加仓、减仓、止损、止盈、信号失效条件 | P2-02 |
@@ -54,3 +54,4 @@
 - 2026-06-10 02:34 CST：完成 Python 工程配置，新增 `pyproject.toml`、开发命令文档、CLI entry point 和 pytest/ruff/mypy 配置；已验证 TOML 解析、`compileall` 和 CLI version。
 - 2026-06-10 09:12 CST：完成 AKShare 股票列表与日线数据接入口，新增 JSON Lines CLI 子命令和不依赖 AKShare/pandas 的映射测试；已通过 `compileall`、CLI version、`unittest` 7 项；`pytest` 与 AKShare 当前未安装；GitHub 远端同步暂记为 `push_pending`。
 - 2026-06-10 09:13 CST：完成 SQLite 本地存储，支持 instruments 和 daily bars 建表、upsert、查询与增量覆盖；已通过 `compileall`、CLI version、`unittest` 9 项；GitHub 远端同步继续记为 `push_pending`。
+- 2026-06-10 09:23 CST：完成数据质量检查层，覆盖 instruments 重复/缺失、日线重复、时间顺序、OHLC、负成交量/成交额/换手率、零成交量停牌提示；已通过 `compileall`、CLI version、`unittest` 14 项；GitHub 远端同步继续记为 `push_pending`。
