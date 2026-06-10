@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 09:30 CST（Asia/Shanghai）
+更新时间：2026-06-10 09:34 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -90,6 +90,13 @@
 - 策略会先检查日线数据质量；存在 error 时跳过候选。
 - 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 24 项。
 
+已经完成买卖点信号解释：
+
+- `build_breakout_signal` 将选股候选和行情转换为 `SignalPlan`。
+- 输出入场价、加仓价、减仓价、止损价、止盈价、信号失效条件、原因列表、风险收益比。
+- ATR 可用时使用 ATR 止损；ATR 不足时使用百分比兜底止损。
+- 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 27 项。
+
 ## 同步状态
 
 - `push_pending`：GitHub 推送凭据暂不可用，按用户最新指令先继续推进任务。
@@ -137,10 +144,10 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P2-03`：实现买卖点解释。
-2. `P3-01`：跑通单策略回测闭环。
-3. `P3-02`：加入 A 股交易约束。
-4. `P3-03`：生成中文绩效报告。
+1. `P3-01`：跑通单策略回测闭环。
+2. `P3-02`：加入 A 股交易约束。
+3. `P3-03`：生成中文绩效报告。
+4. `P4-01`：提供 CLI 任务入口。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
 
 每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交本地 Git。GitHub 推送恢复后再同步 `push_pending` 提交。
