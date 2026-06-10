@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 09:47 CST（Asia/Shanghai）
+更新时间：2026-06-10 09:50 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -118,6 +118,13 @@
 - QuantStats HTML 报告仍作为后续增强，不阻塞当前 MVP。
 - 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 36 项。
 
+已经完成 CLI 任务入口：
+
+- `data update-daily` 支持 AKShare 拉取日线并写入 SQLite。
+- `screen breakout`、`signal breakout`、`backtest breakout`、`report breakout` 支持读取本地 JSONL bars。
+- CLI 输出 JSON，报告命令生成 Markdown 文件。
+- 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 37 项。
+
 ## 同步状态
 
 - `push_pending`：GitHub 推送凭据暂不可用，按用户最新指令先继续推进任务。
@@ -165,10 +172,10 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P4-01`：提供 CLI 任务入口。
-2. `P4-02`：搭建 Web Dashboard 初版。
-3. `P5-01`：扩展多因子研究。
-4. `P5-01`：扩展多因子研究。
+1. `P4-02`：搭建 Web Dashboard 初版。
+2. `P5-01`：扩展多因子研究。
+3. `P5-02`：探索 ML 评分与组合优化。
+4. 后续：组合优化、模拟交易风控、更多数据源适配。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
 
 每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交本地 Git。GitHub 推送恢复后再同步 `push_pending` 提交。

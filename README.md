@@ -29,6 +29,9 @@ python -m pytest
 python -m gupiao.cli --version
 python -m gupiao.cli data instruments --limit 10
 python -m gupiao.cli data daily 000001 --start 2026-01-01 --end 2026-06-10 --limit 5
+python -m gupiao.cli screen breakout --bars data/sample_bars.jsonl --symbol 000001
+python -m gupiao.cli backtest breakout --bars data/sample_bars.jsonl --symbol 000001
+python -m gupiao.cli report breakout --bars data/sample_bars.jsonl --symbol 000001 --output reports/generated/mvp.md
 ```
 
 ## Project Skills
