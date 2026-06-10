@@ -20,6 +20,11 @@ class BacktestConfig:
     atr_window: int = 14
     stop_atr_multiple: float = 2.0
     take_profit_r_multiple: float = 2.0
+    apply_a_share_constraints: bool = True
+    min_holding_bars_before_exit: int = 1
+    limit_up_pct: float = 0.10
+    limit_down_pct: float = 0.10
+    block_suspended: bool = True
 
 
 @dataclass(frozen=True)
@@ -82,9 +87,16 @@ def run_breakout_backtest(
 
     for index, bar in enumerate(ordered_bars):
         exited_this_bar = False
+        previous_close = ordered_bars[index - 1].close if index > 0 else None
         if quantity > 0 and active_signal is not None and entry_date is not None:
             holding_bars += 1
-            exit_price, exit_reason = resolve_exit(bar, active_signal, holding_bars, config)
+            exit_price, exit_reason = resolve_exit(
+                bar,
+                active_signal,
+                holding_bars,
+                config,
+                previous_close=previous_close,
+            )
             if exit_price is not None:
                 cash, trade = close_position(
                     symbol=symbol,
@@ -120,10 +132,11 @@ def run_breakout_backtest(
                     take_profit_r_multiple=config.take_profit_r_multiple,
                 )
                 if signal is not None:
-                    entry_price = apply_buy_slippage(signal.entry_price, config)
-                    quantity, cash, entry_cash = open_position(cash, entry_price, config)
-                    entry_date = bar.trade_date
-                    active_signal = signal
+                    if can_enter(bar, previous_close, config):
+                        entry_price = apply_buy_slippage(signal.entry_price, config)
+                        quantity, cash, entry_cash = open_position(cash, entry_price, config)
+                        entry_date = bar.trade_date
+                        active_signal = signal
 
         position_value = quantity * bar.close
         equity_curve.append(
@@ -170,7 +183,7 @@ def run_breakout_backtest(
         assumptions=(
             "Long-only, single-symbol MVP backtest.",
             "Entries execute at signal close with configured slippage.",
-            "A-share T+1, limit-up/down, suspension execution constraints are not applied yet.",
+            "A-share constraints apply when config.apply_a_share_constraints is true.",
         ),
     )
 
@@ -180,7 +193,11 @@ def resolve_exit(
     signal: SignalPlan,
     holding_bars: int,
     config: BacktestConfig,
+    *,
+    previous_close: float | None = None,
 ) -> tuple[float | None, str]:
+    if not can_exit(bar, previous_close, holding_bars, config):
+        return None, ""
     if bar.low <= signal.stop_loss:
         return apply_sell_slippage(signal.stop_loss, config), "stop_loss"
     if bar.high >= signal.take_profit:
@@ -188,6 +205,49 @@ def resolve_exit(
     if holding_bars >= config.max_holding_bars:
         return apply_sell_slippage(bar.close, config), "max_holding_bars"
     return None, ""
+
+
+def can_enter(
+    bar: DailyBar,
+    previous_close: float | None,
+    config: BacktestConfig,
+) -> bool:
+    if not config.apply_a_share_constraints:
+        return True
+    if config.block_suspended and is_suspended(bar):
+        return False
+    return not is_limit_up(bar.close, previous_close, config.limit_up_pct)
+
+
+def can_exit(
+    bar: DailyBar,
+    previous_close: float | None,
+    holding_bars: int,
+    config: BacktestConfig,
+) -> bool:
+    if not config.apply_a_share_constraints:
+        return True
+    if holding_bars < config.min_holding_bars_before_exit:
+        return False
+    if config.block_suspended and is_suspended(bar):
+        return False
+    return not is_limit_down(bar.close, previous_close, config.limit_down_pct)
+
+
+def is_suspended(bar: DailyBar) -> bool:
+    return bar.volume <= 0
+
+
+def is_limit_up(price: float, previous_close: float | None, limit_up_pct: float) -> bool:
+    if previous_close is None or previous_close <= 0:
+        return False
+    return price >= previous_close * (1 + limit_up_pct)
+
+
+def is_limit_down(price: float, previous_close: float | None, limit_down_pct: float) -> bool:
+    if previous_close is None or previous_close <= 0:
+        return False
+    return price <= previous_close * (1 - limit_down_pct)
 
 
 def open_position(

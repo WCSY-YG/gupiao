@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 09:37 CST（Asia/Shanghai）
+更新时间：2026-06-10 09:43 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -101,8 +101,15 @@
 
 - `run_breakout_backtest` 复用 MVP 选股策略和信号计划，输出 `BacktestResult`。
 - 支持手续费、滑点、止损、止盈、最长持有、收益、最大回撤、胜率、权益曲线和交易明细。
-- 当前假设为单标的、全仓、信号收盘价成交；T+1、涨跌停和停牌成交约束留给 `P3-02`。
+- 当前假设为单标的、全仓、信号收盘价成交。
 - 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 30 项。
+
+已经完成 A 股交易约束：
+
+- `BacktestConfig` 增加 A 股约束开关和参数。
+- 回测默认启用 T+1 最短持有、涨停不可买、跌停不可卖、零成交量停牌不可成交。
+- 暴露 `can_enter`、`can_exit`、`is_limit_up`、`is_limit_down`、`is_suspended` 便于测试和后续报告解释。
+- 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 33 项。
 
 ## 同步状态
 
@@ -151,10 +158,10 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P3-02`：加入 A 股交易约束。
-2. `P3-03`：生成中文绩效报告。
-3. `P4-01`：提供 CLI 任务入口。
-4. `P4-02`：搭建 Web Dashboard 初版。
+1. `P3-03`：生成中文绩效报告。
+2. `P4-01`：提供 CLI 任务入口。
+3. `P4-02`：搭建 Web Dashboard 初版。
+4. `P5-01`：扩展多因子研究。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
 
 每完成一个任务，必须更新 `docs/PROJECT_TASKS.md` 和本文件，并提交本地 Git。GitHub 推送恢复后再同步 `push_pending` 提交。
