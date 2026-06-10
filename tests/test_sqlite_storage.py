@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+from datetime import date, datetime
+from tempfile import TemporaryDirectory
+from unittest import TestCase
+
+from gupiao.data import DailyBar, Instrument, SQLiteStore
+
+
+class SQLiteStoreTest(TestCase):
+    def test_upsert_and_list_instruments(self) -> None:
+        with TemporaryDirectory() as directory:
+            store = SQLiteStore(f"{directory}/gupiao.sqlite")
+
+            count = store.upsert_instruments(
+                [
+                    Instrument(
+                        symbol="000001",
+                        name="平安银行",
+                        market="A股",
+                        exchange="SZSE",
+                        industry="银行",
+                        listed_date=date(1991, 4, 3),
+                    )
+                ]
+            )
+
+            self.assertEqual(count, 1)
+            self.assertEqual(
+                store.list_instruments(),
+                [
+                    Instrument(
+                        symbol="000001",
+                        name="平安银行",
+                        market="A股",
+                        exchange="SZSE",
+                        industry="银行",
+                        listed_date=date(1991, 4, 3),
+                    )
+                ],
+            )
+
+    def test_daily_bar_upsert_updates_existing_row(self) -> None:
+        with TemporaryDirectory() as directory:
+            store = SQLiteStore(f"{directory}/gupiao.sqlite")
+            fetched_at = datetime(2026, 6, 10, 9, 15)
+
+            first = DailyBar(
+                symbol="000001",
+                trade_date=date(2026, 6, 9),
+                open=10.0,
+                high=10.5,
+                low=9.9,
+                close=10.2,
+                volume=1000.0,
+                amount=10000.0,
+                turnover=1.0,
+                adjust="hfq",
+                provider="akshare",
+                fetched_at=fetched_at,
+            )
+            second = DailyBar(
+                symbol="000001",
+                trade_date=date(2026, 6, 9),
+                open=10.1,
+                high=10.6,
+                low=10.0,
+                close=10.4,
+                volume=1200.0,
+                amount=12000.0,
+                turnover=1.2,
+                adjust="hfq",
+                provider="akshare",
+                fetched_at=fetched_at,
+            )
+
+            self.assertEqual(store.upsert_daily_bars([first]), 1)
+            self.assertEqual(store.upsert_daily_bars([second]), 1)
+
+            bars = store.get_daily_bars(
+                "000001",
+                start=date(2026, 6, 1),
+                end=date(2026, 6, 30),
+                adjust="hfq",
+            )
+            self.assertEqual(bars, [second])

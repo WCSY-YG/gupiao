@@ -1,6 +1,6 @@
 # 项目记忆
 
-更新时间：2026-06-10 09:12 CST（Asia/Shanghai）
+更新时间：2026-06-10 09:13 CST（Asia/Shanghai）
 
 ## 用户目标
 
@@ -62,6 +62,13 @@
 - 新增不依赖 AKShare/pandas 的 provider 映射、日期解析、交易所推断和 CLI helper 测试。
 - 验证：`PYTHONPATH=src python -m compileall -q src tests` 通过，`PYTHONPATH=src python -m gupiao.cli --version` 输出 `0.1.0`，`PYTHONPATH=src python -m unittest discover -s tests` 通过 7 项；`pytest` 与 AKShare 当前未安装，真实 AKShare smoke test 跳过。
 
+已经完成 SQLite 本地数据存储：
+
+- `SQLiteStore` 支持 instruments 和 daily bars 的 schema 初始化、批量 upsert、查询和重复写入覆盖。
+- 存储层仅使用 Python 标准库 `sqlite3`，DuckDB/Parquet 留作后续扩展。
+- 新增临时 SQLite 文件测试，覆盖写入、读取和增量更新。
+- 验证：`compileall`、CLI version、`PYTHONPATH=src python -m unittest discover -s tests` 通过 9 项。
+
 ## 同步状态
 
 - `push_pending`：GitHub 推送凭据暂不可用，按用户最新指令先继续推进任务。
@@ -109,8 +116,8 @@ MVP 优先参考项目：
 
 当前下一项任务：
 
-1. `P1-04`：设计并实现本地数据存储。
-2. `P1-05`：加入数据质量检查。
+1. `P1-05`：加入数据质量检查。
+2. `P2-01`：实现技术指标层。
 3. `P2-02`：实现第一个完整策略：均线多头 + 放量突破 + ATR 止损。
 4. `P3-01`：跑通单策略回测闭环。
 5. 跑通：获取数据 -> 计算指标 -> 选股 -> 买卖点解释 -> 回测 -> 报告。
